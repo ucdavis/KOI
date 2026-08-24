@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Koi.Functions/Koi.Functions.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Koi.Functions.Tests/Koi.Functions.Tests.csproj" />
+  </Folder>
+</Solution>
