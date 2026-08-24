@@ -8,7 +8,7 @@ public sealed class ApiKeyOptions
 
     public static bool IsValid(ApiKeyOptions options)
     {
-        if (options.Credentials.Count == 0)
+        if (options.Credentials is not { Count: 2 })
         {
             return false;
         }

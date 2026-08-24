@@ -17,7 +17,7 @@ builder.Services.Configure<JsonSerializerOptions>(options =>
 builder.Services
     .AddOptions<ApiKeyOptions>()
     .BindConfiguration(ApiKeyOptions.SectionName)
-    .Validate(ApiKeyOptions.IsValid, "At least one valid, enabled API key must be configured.")
+    .Validate(ApiKeyOptions.IsValid, "Exactly two unique, valid API key slots with at least one enabled slot must be configured.")
     .ValidateOnStart();
 
 builder.Services.AddSingleton<ApiKeyAuthenticator>();

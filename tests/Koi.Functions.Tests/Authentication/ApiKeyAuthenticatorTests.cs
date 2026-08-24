@@ -91,10 +91,50 @@ public sealed class ApiKeyAuthenticatorTests
     {
         var options = new ApiKeyOptions
         {
-            Credentials = [Credential("primary", PrimaryToken, enabled: false)],
+            Credentials =
+            [
+                Credential("primary", PrimaryToken, enabled: false),
+                Credential("secondary", SecondaryToken, enabled: false),
+            ],
         };
 
         Assert.False(ApiKeyOptions.IsValid(options));
+    }
+
+    [Fact]
+    public void OptionsRequireExactlyTwoCredentialSlots()
+    {
+        var oneCredential = new ApiKeyOptions
+        {
+            Credentials = [Credential("primary", PrimaryToken)],
+        };
+        var threeCredentials = new ApiKeyOptions
+        {
+            Credentials =
+            [
+                Credential("primary", PrimaryToken),
+                Credential("secondary", SecondaryToken),
+                Credential("tertiary", "koi_test_tertiary.a-third-valid-test-token"),
+            ],
+        };
+
+        Assert.False(ApiKeyOptions.IsValid(oneCredential));
+        Assert.False(ApiKeyOptions.IsValid(threeCredentials));
+    }
+
+    [Fact]
+    public void OptionsAllowOneDisabledRotationSlot()
+    {
+        var options = new ApiKeyOptions
+        {
+            Credentials =
+            [
+                Credential("primary", PrimaryToken),
+                Credential("secondary", SecondaryToken, enabled: false),
+            ],
+        };
+
+        Assert.True(ApiKeyOptions.IsValid(options));
     }
 
     private static ApiKeyAuthenticator CreateAuthenticator(params ApiKeyCredential[] credentials)
