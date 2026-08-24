@@ -8,11 +8,16 @@ public sealed class ResponseContractTests
     [Fact]
     public void HealthContractIsStable()
     {
-        var response = new HealthResponse("healthy", ServiceMetadata.Name, ServiceMetadata.Version);
+        var response = new HealthResponse(
+            "healthy",
+            ServiceMetadata.Name,
+            ServiceMetadata.Version,
+            ServiceMetadata.Revision);
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
         Assert.Equal("0.1.0", response.Version);
+        Assert.NotEmpty(response.Revision);
     }
 
     [Fact]

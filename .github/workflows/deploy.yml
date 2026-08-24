@@ -1,0 +1,177 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: koi-test-deployment
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build deployment artifact
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Install pinned Bicep CLI
+        run: az bicep install --version v0.46.1
+
+      - name: Build, test, and compile infrastructure
+        env:
+          KOI_BUILD_REVISION: ${{ github.sha }}
+        run: ./scripts/build.sh
+
+      - name: Upload immutable deployment artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: koi-deployment-${{ github.sha }}
+          path: artifacts/deployment/
+          if-no-files-found: error
+          retention-days: 14
+
+  deploy:
+    name: Deploy test
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: test
+      url: ${{ steps.infrastructure.outputs.function_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download immutable deployment artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: koi-deployment-${{ github.sha }}
+          path: artifacts/deployment/
+
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure deployment boundary
+        shell: bash
+        run: |
+          selected_subscription="$(az account show --query id --output tsv)"
+          selected_tenant="$(az account show --query tenantId --output tsv)"
+
+          if [[ "$selected_subscription" != "${{ vars.AZURE_SUBSCRIPTION_ID }}" ]]; then
+            echo "Azure login selected unexpected subscription $selected_subscription." >&2
+            exit 1
+          fi
+
+          if [[ "$selected_tenant" != "${{ vars.AZURE_TENANT_ID }}" ]]; then
+            echo "Azure login selected unexpected tenant $selected_tenant." >&2
+            exit 1
+          fi
+
+          resource_group_id="$(az group show \
+            --name "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --query id \
+            --output tsv)"
+          expected_resource_group_id="/subscriptions/${{ vars.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ vars.AZURE_RESOURCE_GROUP }}"
+
+          if [[ "${resource_group_id,,}" != "${expected_resource_group_id,,}" ]]; then
+            echo "Resource group resolved outside the expected deployment boundary." >&2
+            exit 1
+          fi
+
+      - name: Synchronize Bicep infrastructure
+        id: infrastructure
+        shell: bash
+        env:
+          API_KEY_1_SHA256: ${{ secrets.KOI_API_KEY_1_SHA256 }}
+          API_KEY_2_SHA256: ${{ secrets.KOI_API_KEY_2_SHA256 }}
+        run: |
+          if [[ ! "$API_KEY_1_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] \
+            || [[ ! "$API_KEY_2_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "GitHub environment API-key hashes are missing or invalid." >&2
+            exit 1
+          fi
+
+          deployment_name="koi-test-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          deployment_parameters=(
+            environmentName="${{ vars.AZURE_ENVIRONMENT_NAME }}"
+            location="${{ vars.AZURE_LOCATION }}"
+            apiKey1Id="${{ vars.KOI_API_KEY_1_ID }}"
+            apiKey1Sha256="$API_KEY_1_SHA256"
+            apiKey2Id="${{ vars.KOI_API_KEY_2_ID }}"
+            apiKey2Sha256="$API_KEY_2_SHA256"
+          )
+
+          az deployment group what-if \
+            --name "$deployment_name" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file artifacts/deployment/main.json \
+            --parameters "${deployment_parameters[@]}" \
+            --no-pretty-print \
+            --output none
+
+          deployment_outputs="$(az deployment group create \
+            --name "$deployment_name" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file artifacts/deployment/main.json \
+            --parameters "${deployment_parameters[@]}" \
+            --query properties.outputs \
+            --output json)"
+
+          function_app_name="$(jq -r '.functionAppName.value' <<<"$deployment_outputs")"
+          function_url="$(jq -r '.functionAppUrl.value' <<<"$deployment_outputs")"
+
+          if [[ -z "$function_app_name" || "$function_app_name" == "null" \
+            || ! "$function_url" =~ ^https://[a-z0-9-]+\.azurewebsites\.net$ ]]; then
+            echo "Bicep deployment returned invalid Function outputs." >&2
+            exit 1
+          fi
+
+          echo "function_app_name=$function_app_name" >>"$GITHUB_OUTPUT"
+          echo "function_url=$function_url" >>"$GITHUB_OUTPUT"
+
+      - name: Deploy Function package
+        run: |
+          az functionapp deployment source config-zip \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ steps.infrastructure.outputs.function_app_name }}" \
+            --src artifacts/deployment/koi-functions.zip \
+            --timeout 600 \
+            --output none
+
+      - name: Verify deployed contract
+        run: ./scripts/smoke-deployed.sh "${{ steps.infrastructure.outputs.function_url }}" "$GITHUB_SHA"
+
+      - name: Record deployment summary
+        run: |
+          {
+            echo '### KOI test deployment'
+            echo
+            echo '- Resource group: `${{ vars.AZURE_RESOURCE_GROUP }}`'
+            echo '- Function app: `${{ steps.infrastructure.outputs.function_app_name }}`'
+            echo '- URL: ${{ steps.infrastructure.outputs.function_url }}'
+            echo '- Revision: `${{ github.sha }}`'
+          } >>"$GITHUB_STEP_SUMMARY"

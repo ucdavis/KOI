@@ -18,10 +18,14 @@ public sealed class HealthFunction
         var response = request.CreateResponse();
         response.StatusCode = HttpStatusCode.OK;
         await response.WriteAsJsonAsync(
-            new HealthResponse("healthy", ServiceMetadata.Name, ServiceMetadata.Version),
+            new HealthResponse(
+                "healthy",
+                ServiceMetadata.Name,
+                ServiceMetadata.Version,
+                ServiceMetadata.Revision),
             cancellationToken);
         return response;
     }
 }
 
-public sealed record HealthResponse(string Status, string Service, string Version);
+public sealed record HealthResponse(string Status, string Service, string Version, string Revision);

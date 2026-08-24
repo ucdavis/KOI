@@ -20,4 +20,11 @@
     <InternalsVisibleTo Include="Koi.Functions.Tests" />
   </ItemGroup>
 
+  <ItemGroup Condition="'$(SourceRevisionId)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildRevision</_Parameter1>
+      <_Parameter2>$(SourceRevisionId)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>
