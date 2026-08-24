@@ -94,24 +94,27 @@ collector using standard OTLP settings. The collector endpoint and protocol are
 GitHub environment variables; the authentication header is a GitHub environment
 secret and becomes a secure Bicep parameter and Function application setting.
 
-Configure the `test` environment without putting the header value on the command
-line or in shell history:
+Add the real values to the gitignored, mode-`600` `.env.test` handoff file. This
+keeps the header value off the command line, shell history, and Git repository:
 
-```bash
-read -r -p 'OTLP endpoint: ' OTEL_EXPORTER_OTLP_ENDPOINT
-read -r -p 'OTLP protocol [grpc]: ' OTEL_EXPORTER_OTLP_PROTOCOL
-OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
-read -r -s -p 'OTLP authentication header: ' OTEL_EXPORTER_OTLP_HEADERS
-echo
-export OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_HEADERS
-./scripts/configure-test-otel.sh
-unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_HEADERS
+```dotenv
+OTEL_EXPORTER_OTLP_ENDPOINT='https://replace-with-collector-endpoint'
+OTEL_EXPORTER_OTLP_PROTOCOL='grpc'
+OTEL_EXPORTER_OTLP_HEADERS='Authorization=ApiKey replace-with-credential'
 ```
 
 Elastic commonly supplies a header in the form
 `Authorization=ApiKey <credential>`. Use the exact endpoint, protocol, and
-header issued for the central collector. Do not deploy until all three settings
-are present in the GitHub `test` environment.
+header issued for the central collector. Then synchronize the values into the
+GitHub `test` environment:
+
+```bash
+./scripts/configure-test-otel.sh
+```
+
+The script stores the endpoint and protocol as GitHub environment variables and
+the authentication header as a GitHub environment secret. Do not deploy until
+all three settings are present.
 
 ## GitHub Actions
 

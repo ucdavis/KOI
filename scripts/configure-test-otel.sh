@@ -3,6 +3,7 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_file="$repo_root/infra/environments/test.env"
+credential_file="$repo_root/.env.test"
 
 for command_name in gh; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
@@ -13,6 +14,11 @@ done
 
 # shellcheck disable=SC1090
 source "$config_file"
+if [[ -f "$credential_file" ]]; then
+  chmod 600 "$credential_file"
+  # shellcheck disable=SC1090
+  source "$credential_file"
+fi
 
 otel_endpoint="${OTEL_EXPORTER_OTLP_ENDPOINT:-}"
 otel_headers="${OTEL_EXPORTER_OTLP_HEADERS:-}"
@@ -45,6 +51,6 @@ printf '%s' "$otel_headers" | gh secret set OTEL_EXPORTER_OTLP_HEADERS \
   --repo "$GITHUB_OWNER/$GITHUB_REPOSITORY" \
   --env "$GITHUB_ENVIRONMENT"
 
-unset otel_headers OTEL_EXPORTER_OTLP_HEADERS
+unset otel_headers OTEL_EXPORTER_OTLP_HEADERS KOI_API_KEY_1 KOI_API_KEY_2
 
 echo "Configured Elastic OTLP settings for $GITHUB_OWNER/$GITHUB_REPOSITORY / $GITHUB_ENVIRONMENT."

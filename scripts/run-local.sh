@@ -41,6 +41,12 @@ export ApiKeys__Credentials__1__Id="$KOI_API_KEY_2_ID"
 export ApiKeys__Credentials__1__Sha256="$(sha256 "$KOI_API_KEY_2")"
 export ApiKeys__Credentials__1__Enabled=true
 
+if [[ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
+  export OTEL_EXPORTER_OTLP_ENDPOINT
+  export OTEL_EXPORTER_OTLP_HEADERS="${OTEL_EXPORTER_OTLP_HEADERS:-}"
+  export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
+fi
+
 port="${KOI_PORT:-7071}"
 unset KOI_API_KEY_1 KOI_API_KEY_2
 
