@@ -1,6 +1,6 @@
 # KOI
 
-Kuali Operations Integration provides narrow API endpoints that enrich Kuali Build.
+Kuali Operational Integrations provides narrow API endpoints that enrich Kuali Build.
 
 This initial .NET 10 Azure Functions foundation intentionally has no database or
 downstream integrations. It proves host health and Function-side API-key
