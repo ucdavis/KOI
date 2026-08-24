@@ -5,9 +5,11 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 env_file="$repo_root/.env"
 
 if [[ ! -f "$env_file" ]]; then
-  echo "Missing $env_file. Copy .env.example and create two local keys." >&2
+  echo "Missing $env_file. Run ./scripts/create-local-env.sh to create two local keys." >&2
   exit 1
 fi
+
+chmod 600 "$env_file"
 
 # shellcheck disable=SC1090
 source "$env_file"

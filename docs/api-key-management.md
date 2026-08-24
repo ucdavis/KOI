@@ -77,14 +77,19 @@ after comparing hashes and logs only that non-secret ID.
 
 ## Rotate a key
 
-1. Generate a new independent token and a new dated ID.
-2. Store the plaintext token in the approved password manager.
-3. Add its ID and hash to the unused KOI credential slot with `Enabled=true`.
-4. Verify the new token against an authenticated KOI endpoint.
-5. Update Kuali Build to use the new plaintext token.
-6. Confirm KOI telemetry reports successful requests using the new ID.
-7. Disable the old slot and verify Kuali continues to succeed.
-8. Remove the old credential after the observation period.
+KOI must always have exactly two unique, structurally valid credential slots,
+with at least one slot enabled.
+
+1. Select the slot that is not used by the caller and disable it if necessary.
+2. Generate a new independent token and a new dated ID.
+3. Store the plaintext token in the approved password manager.
+4. Replace the disabled slot's ID and hash, then enable the slot.
+5. Verify the new token against an authenticated KOI endpoint.
+6. Update Kuali Build to use the new plaintext token.
+7. Confirm KOI telemetry reports successful requests using the new ID.
+8. Disable the retired slot and verify Kuali continues to succeed.
+9. Keep the retired slot configured and disabled. During the next rotation,
+   replace that slot's ID and hash before enabling it.
 
 If a plaintext token might have been disclosed, treat it as compromised and
 disable that credential immediately. Do not wait for the normal rotation
