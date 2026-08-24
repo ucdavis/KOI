@@ -24,11 +24,12 @@ Clients send exactly one credential using the standard authorization header:
 Authorization: Bearer <token>
 ```
 
-KOI supports two active credentials so a new key can be introduced and tested
-before the previous key is disabled. Tokens should contain at least 256 bits of
-randomness. Only SHA-256 hashes are supplied to the application; comparisons
-are constant-time. Missing, malformed, disabled, and incorrect credentials all
-receive the same `401 Unauthorized` response.
+KOI requires exactly two configured credential slots, with at least one enabled,
+so a new key can be introduced and tested before the previous key is disabled.
+Tokens should contain at least 256 bits of randomness. Only SHA-256 hashes are
+supplied to the application; comparisons are constant-time. Missing, malformed,
+disabled, and incorrect credentials all receive the same `401 Unauthorized`
+response.
 
 Plaintext development keys belong only in the gitignored `.env`. Never put a
 real token in source, tests, GitHub configuration, logs, or documentation.

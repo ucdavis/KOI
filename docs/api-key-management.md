@@ -7,7 +7,8 @@ credential has three parts:
 - **Token:** The plaintext secret presented by the caller. KOI never stores it.
 - **SHA-256 hash:** The value KOI stores and compares against presented tokens.
 
-KOI supports two active credentials so keys can be rotated without downtime.
+KOI requires exactly two configured credential slots, with at least one enabled,
+so keys can be rotated without downtime.
 
 ## Generate a production token
 
