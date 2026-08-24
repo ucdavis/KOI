@@ -76,7 +76,9 @@ dotnet test
 KOI test infrastructure is declared in Bicep and deployed from GitHub Actions.
 The pipeline builds and tests once, compiles the Bicep, uploads an immutable
 artifact, synchronizes Azure infrastructure, deploys that exact Function
-package, and verifies the public contract.
+package, and verifies the public contract. The Function exports telemetry
+directly to the central Elastic collector over OTLP; Application Insights and
+Log Analytics are not provisioned.
 
 The one-time bootstrap creates the Bicep-managed resource group and deployment
 managed identity, the environment-scoped GitHub OIDC trust, and the GitHub

@@ -1,12 +1,19 @@
 using System.Text.Json;
 using Koi.Functions.Authentication;
 using Microsoft.Azure.Functions.Worker.Builder;
+using Microsoft.Azure.Functions.Worker.OpenTelemetry;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenTelemetry;
 
 var builder = FunctionsApplication.CreateBuilder(args);
 
 builder.UseMiddleware<ApiKeyAuthenticationMiddleware>();
+
+builder.Services
+    .AddOpenTelemetry()
+    .UseFunctionsWorkerDefaults()
+    .UseOtlpExporter();
 
 builder.Services.Configure<JsonSerializerOptions>(options =>
 {

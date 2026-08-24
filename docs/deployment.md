@@ -26,12 +26,17 @@ identity. `infra/main.bicep` creates all workload resources inside it:
 - .NET 10 isolated Azure Function on a 2 GB Flex Consumption plan
 - system-assigned Function managed identity for future downstream access
 - private deployment container in a dedicated Storage account
-- Log Analytics workspace and workspace-based Application Insights
+- direct OpenTelemetry export to the central Elastic collector
 - Function application settings containing API-key IDs and SHA-256 hashes
 
 Resource names use a stable `uniqueString` suffix derived from the subscription,
 resource group, and environment. Bicep outputs the Function name, URL, managed
-identity object ID, Storage account name, and Application Insights name.
+identity object ID, and Storage account name.
+
+Application Insights and Log Analytics are intentionally not provisioned. Their
+log ingestion can incur Azure Monitor charges and would duplicate the central
+Elastic destination. Azure platform metrics remain available independently of
+Application Insights.
 
 The Function host and deployment container currently use an Azure Storage
 connection string stored in encrypted Function application settings. This keeps
@@ -82,12 +87,40 @@ The Azure identity, federated credential, role assignment, resource group, and
 workload resources are Bicep-managed. The bootstrap script uses `gh` only for
 the GitHub environment, variables, branch policy, and hashed API-key secrets.
 
+## Elastic OpenTelemetry configuration
+
+The Function sends logs, traces, and metrics directly to the central Elastic
+collector using standard OTLP settings. The collector endpoint and protocol are
+GitHub environment variables; the authentication header is a GitHub environment
+secret and becomes a secure Bicep parameter and Function application setting.
+
+Configure the `test` environment without putting the header value on the command
+line or in shell history:
+
+```bash
+read -r -p 'OTLP endpoint: ' OTEL_EXPORTER_OTLP_ENDPOINT
+read -r -p 'OTLP protocol [grpc]: ' OTEL_EXPORTER_OTLP_PROTOCOL
+OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
+read -r -s -p 'OTLP authentication header: ' OTEL_EXPORTER_OTLP_HEADERS
+echo
+export OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_HEADERS
+./scripts/configure-test-otel.sh
+unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_PROTOCOL OTEL_EXPORTER_OTLP_HEADERS
+```
+
+Elastic commonly supplies a header in the form
+`Authorization=ApiKey <credential>`. Use the exact endpoint, protocol, and
+header issued for the central collector. Do not deploy until all three settings
+are present in the GitHub `test` environment.
+
 ## GitHub Actions
 
 The workflows use pinned action commit SHAs and minimal job permissions.
 
 - `CI` runs for pull requests and manual checks. It restores locked NuGet
-  dependencies, builds, tests, publishes, and compiles both Bicep files.
+  dependencies, runs the automated tests in a dedicated step, publishes, and
+  compiles both Bicep files. Any failing test returns a nonzero status, fails the
+  workflow, and reports its name, assertion, and stack trace in the test step.
 - `Deploy` runs after a push to `main` or a manual dispatch. Its build job
   creates one immutable deployment artifact. Its `test` environment job signs
   in through OIDC, runs Bicep what-if and deployment, deploys the exact Function
@@ -106,17 +139,16 @@ The automated smoke test waits for the expected Git revision and verifies:
 - unauthorized responses advertise `WWW-Authenticate: Bearer`
 
 Because GitHub never receives plaintext KOI tokens, verify both active slots
-from the trusted local handoff after deployment. Use the Application Insights
-name from the deployment summary so the same check waits for both successful
-requests in telemetry and locally verifies that the resulting telemetry does
-not contain either token or its recognizable prefix or suffix:
+from the trusted local handoff after deployment:
 
 ```bash
-./scripts/smoke-authenticated.sh \
-  https://<function-app>.azurewebsites.net \
-  rg-koi-test \
-  <application-insights-name>
+./scripts/smoke-authenticated.sh https://<function-app>.azurewebsites.net
 ```
+
+The script prints the UTC start time for those two requests. Use that boundary
+to verify in Elastic that both requests arrived and that neither plaintext token
+nor a recognizable token prefix or suffix was recorded. The smoke test does not
+claim telemetry success until an Elastic query path is configured and checked.
 
 For a direct call with the first test token:
 
@@ -133,3 +165,26 @@ Every deployment artifact is retained for 14 days and named with its full Git
 commit SHA. Re-running a successful prior `Deploy` workflow run rebuilds and
 redeploys that commit's Bicep and Function package. Confirm the health
 `revision` equals the intended rollback commit afterward.
+
+## Future production bootstrap
+
+Production should be a separate GitHub environment, Azure resource group,
+deployment managed identity, immutable OIDC credential, API-key pair, and
+Elastic telemetry configuration. Before adding it:
+
+1. Confirm the production subscription, region, resource-group name, and GitHub
+   environment reviewers.
+2. Generalize the test-specific bootstrap and configuration scripts to accept a
+   reviewed environment file; do not copy and hand-edit the test scripts.
+3. Bootstrap the production identity with `Contributor` scoped only to the
+   production resource group and verify the immutable repository/environment
+   OIDC subject.
+4. Generate production API keys into an approved password manager, then store
+   only their IDs and SHA-256 hashes in GitHub.
+5. Configure the production Elastic endpoint, protocol, and authentication
+   header, then add a production deploy job protected by the GitHub environment.
+6. Validate Bicep what-if, deploy, run public and authenticated smoke tests, and
+   prove ingestion and token redaction in Elastic.
+
+The current workflow intentionally deploys only `test`; production remains
+unreachable until that environment-specific path is implemented and reviewed.

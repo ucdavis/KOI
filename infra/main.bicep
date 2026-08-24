@@ -30,6 +30,22 @@ param apiKey2Id string
 @maxLength(64)
 param apiKey2Sha256 string
 
+@description('HTTPS endpoint for the central OTLP collector.')
+@minLength(8)
+param otelExporterOtlpEndpoint string
+
+@description('Authentication headers sent to the central OTLP collector.')
+@secure()
+@minLength(1)
+param otelExporterOtlpHeaders string
+
+@description('Wire protocol accepted by the central OTLP collector.')
+@allowed([
+  'grpc'
+  'http/protobuf'
+])
+param otelExporterOtlpProtocol string
+
 @description('Maximum number of Flex Consumption instances.')
 @minValue(1)
 @maxValue(1000)
@@ -48,8 +64,6 @@ var storageEnvironmentName = take(toLower(replace(environmentName, '-', '')), 6)
 var functionAppName = 'func-koi-${environmentName}-${resourceToken}'
 var functionPlanName = 'plan-koi-${environmentName}-${resourceToken}'
 var storageAccountName = 'stkoi${storageEnvironmentName}${resourceToken}'
-var logAnalyticsName = 'log-koi-${environmentName}-${resourceToken}'
-var applicationInsightsName = 'appi-koi-${environmentName}-${resourceToken}'
 var deploymentContainerName = 'app-package-${take(resourceToken, 8)}'
 var storageConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storage.name};AccountKey=${storage.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
 var tags = {
@@ -93,38 +107,6 @@ resource deploymentContainer 'Microsoft.Storage/storageAccounts/blobServices/con
   name: deploymentContainerName
   properties: {
     publicAccess: 'None'
-  }
-}
-
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
-  name: logAnalyticsName
-  location: location
-  tags: tags
-  properties: {
-    features: {
-      enableLogAccessUsingOnlyResourcePermissions: true
-    }
-    publicNetworkAccessForIngestion: 'Enabled'
-    publicNetworkAccessForQuery: 'Enabled'
-    retentionInDays: 30
-    sku: {
-      name: 'PerGB2018'
-    }
-  }
-}
-
-resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
-  name: applicationInsightsName
-  location: location
-  kind: 'web'
-  tags: tags
-  properties: {
-    Application_Type: 'web'
-    Flow_Type: 'Bluefield'
-    IngestionMode: 'LogAnalytics'
-    RetentionInDays: 30
-    Request_Source: 'rest'
-    WorkspaceResourceId: logAnalytics.id
   }
 }
 
@@ -189,11 +171,15 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
   parent: functionApp
   name: 'appsettings'
   properties: {
-    APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.properties.ConnectionString
     AzureWebJobsStorage: storageConnectionString
     DEPLOYMENT_STORAGE_CONNECTION_STRING: storageConnectionString
     FUNCTIONS_EXTENSION_VERSION: '~4'
     FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
+    OTEL_EXPORTER_OTLP_ENDPOINT: otelExporterOtlpEndpoint
+    OTEL_EXPORTER_OTLP_HEADERS: otelExporterOtlpHeaders
+    OTEL_EXPORTER_OTLP_PROTOCOL: otelExporterOtlpProtocol
+    OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=${environmentName},service.namespace=ucdavis'
+    OTEL_SERVICE_NAME: 'koi'
     ApiKeys__Credentials__0__Enabled: 'true'
     ApiKeys__Credentials__0__Id: apiKey1Id
     ApiKeys__Credentials__0__Sha256: apiKey1Sha256
@@ -203,7 +189,6 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
   }
 }
 
-output applicationInsightsName string = applicationInsights.name
 output functionAppName string = functionApp.name
 output functionAppPrincipalId string = functionApp.identity.principalId
 output functionAppUrl string = 'https://${functionApp.properties.defaultHostName}'

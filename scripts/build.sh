@@ -5,8 +5,17 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 artifacts_dir="$repo_root/artifacts/deployment"
 publish_dir="$repo_root/artifacts/publish"
 revision="${KOI_BUILD_REVISION:-$(git -C "$repo_root" rev-parse HEAD)}"
+phase="${1:-all}"
 
-required_commands=(az dotnet zip)
+if [[ ! "$phase" =~ ^(all|restore|test|package)$ ]]; then
+  echo "Usage: $0 [all|restore|test|package]" >&2
+  exit 1
+fi
+
+required_commands=(dotnet)
+if [[ "$phase" == "all" || "$phase" == "package" ]]; then
+  required_commands+=(az zip)
+fi
 for command_name in "${required_commands[@]}"; do
   if ! command -v "$command_name" >/dev/null 2>&1; then
     echo "Missing required command: $command_name" >&2
@@ -14,40 +23,65 @@ for command_name in "${required_commands[@]}"; do
   fi
 done
 
-if [[ ! "$revision" =~ ^[0-9a-fA-F]{40}$ ]]; then
+if [[ "$phase" != "restore" && ! "$revision" =~ ^[0-9a-fA-F]{40}$ ]]; then
   echo "KOI_BUILD_REVISION must be a full 40-character Git commit SHA." >&2
   exit 1
 fi
 
-rm -rf "$artifacts_dir" "$publish_dir"
-mkdir -p "$artifacts_dir" "$publish_dir"
+restore_solution() {
+  dotnet restore "$repo_root/Koi.slnx" --locked-mode --nologo
+}
 
-dotnet restore "$repo_root/Koi.slnx" --locked-mode --nologo
-dotnet test "$repo_root/Koi.slnx" \
-  --configuration Release \
-  --no-restore \
-  --nologo \
-  -p:SourceRevisionId="$revision"
+test_solution() {
+  dotnet test "$repo_root/Koi.slnx" \
+    --configuration Release \
+    --no-restore \
+    --nologo \
+    --logger "console;verbosity=normal" \
+    -p:SourceRevisionId="$revision"
+}
 
-dotnet publish "$repo_root/src/Koi.Functions/Koi.Functions.csproj" \
-  --configuration Release \
-  --no-restore \
-  --nologo \
-  --output "$publish_dir" \
-  -p:SourceRevisionId="$revision"
+package_deployment() {
+  rm -rf "$artifacts_dir" "$publish_dir"
+  mkdir -p "$artifacts_dir" "$publish_dir"
 
-(
-  cd "$publish_dir"
-  zip -q -r "$artifacts_dir/koi-functions.zip" .
-)
+  dotnet publish "$repo_root/src/Koi.Functions/Koi.Functions.csproj" \
+    --configuration Release \
+    --no-restore \
+    --nologo \
+    --output "$publish_dir" \
+    -p:SourceRevisionId="$revision"
 
-az bicep build \
-  --file "$repo_root/infra/bootstrap.bicep" \
-  --outfile "$artifacts_dir/bootstrap.json"
-az bicep build \
-  --file "$repo_root/infra/main.bicep" \
-  --outfile "$artifacts_dir/main.json"
+  (
+    cd "$publish_dir"
+    zip -q -r "$artifacts_dir/koi-functions.zip" .
+  )
 
-echo "Built KOI revision $revision"
-echo "Function package: $artifacts_dir/koi-functions.zip"
-echo "Infrastructure template: $artifacts_dir/main.json"
+  az bicep build \
+    --file "$repo_root/infra/bootstrap.bicep" \
+    --outfile "$artifacts_dir/bootstrap.json"
+  az bicep build \
+    --file "$repo_root/infra/main.bicep" \
+    --outfile "$artifacts_dir/main.json"
+
+  echo "Built KOI revision $revision"
+  echo "Function package: $artifacts_dir/koi-functions.zip"
+  echo "Infrastructure template: $artifacts_dir/main.json"
+}
+
+case "$phase" in
+  restore)
+    restore_solution
+    ;;
+  test)
+    test_solution
+    ;;
+  package)
+    package_deployment
+    ;;
+  all)
+    restore_solution
+    test_solution
+    package_deployment
+    ;;
+esac
