@@ -44,7 +44,11 @@ param otelExporterOtlpHeaders string
   'grpc'
   'http/protobuf'
 ])
-param otelExporterOtlpProtocol string
+param otelExporterOtlpProtocol string = 'grpc'
+
+@description('Application version attached to OpenTelemetry resources.')
+@minLength(1)
+param serviceVersion string
 
 @description('Maximum number of Flex Consumption instances.')
 @minValue(1)
@@ -178,7 +182,7 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     OTEL_EXPORTER_OTLP_ENDPOINT: otelExporterOtlpEndpoint
     OTEL_EXPORTER_OTLP_HEADERS: otelExporterOtlpHeaders
     OTEL_EXPORTER_OTLP_PROTOCOL: otelExporterOtlpProtocol
-    OTEL_RESOURCE_ATTRIBUTES: 'deployment.environment.name=${environmentName},service.namespace=ucdavis'
+    OTEL_RESOURCE_ATTRIBUTES: 'service.name=koi,service.version=${serviceVersion},deployment.environment=${environmentName},service.namespace=ucdavis'
     OTEL_SERVICE_NAME: 'koi'
     ApiKeys__Credentials__0__Enabled: 'true'
     ApiKeys__Credentials__0__Id: apiKey1Id

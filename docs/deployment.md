@@ -99,22 +99,34 @@ keeps the header value off the command line, shell history, and Git repository:
 
 ```dotenv
 OTEL_EXPORTER_OTLP_ENDPOINT='https://replace-with-collector-endpoint'
-OTEL_EXPORTER_OTLP_PROTOCOL='grpc'
 OTEL_EXPORTER_OTLP_HEADERS='Authorization=ApiKey replace-with-credential'
 ```
 
 Elastic commonly supplies a header in the form
 `Authorization=ApiKey <credential>`. Use the exact endpoint, protocol, and
-header issued for the central collector. Then synchronize the values into the
-GitHub `test` environment:
+header issued for the central collector. `OTEL_EXPORTER_OTLP_PROTOCOL` is
+optional and defaults to `grpc`, matching the upstream .NET SDK. Set it to
+`http/protobuf` only when the Elastic endpoint specifically requires OTLP/HTTP.
+Then synchronize the values into the GitHub `test` environment:
 
 ```bash
 ./scripts/configure-test-otel.sh
 ```
 
 The script stores the endpoint and protocol as GitHub environment variables and
-the authentication header as a GitHub environment secret. Do not deploy until
-all three settings are present.
+the authentication header as a GitHub environment secret. Bicep supplies these
+resource attributes to every deployed environment:
+
+```text
+service.name=koi
+service.version=<version from Koi.Functions.csproj>
+deployment.environment=<test or production>
+service.namespace=ucdavis
+```
+
+Local startup supplies the same attributes with
+`deployment.environment=local`. Do not deploy until the endpoint, resolved
+protocol, and authentication header are present in GitHub.
 
 ## GitHub Actions
 

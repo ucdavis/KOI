@@ -42,13 +42,19 @@ export ApiKeys__Credentials__1__Sha256="$(sha256 "$KOI_API_KEY_2")"
 export ApiKeys__Credentials__1__Enabled=true
 
 if [[ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
+  service_version="$(dotnet msbuild \
+    "$repo_root/src/Koi.Functions/Koi.Functions.csproj" \
+    -getProperty:Version \
+    -nologo)"
   export OTEL_EXPORTER_OTLP_ENDPOINT
   export OTEL_EXPORTER_OTLP_HEADERS="${OTEL_EXPORTER_OTLP_HEADERS:-}"
   export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
+  export OTEL_RESOURCE_ATTRIBUTES="${OTEL_RESOURCE_ATTRIBUTES:-service.name=koi,service.version=$service_version,deployment.environment=local,service.namespace=ucdavis}"
+  export OTEL_SERVICE_NAME="${OTEL_SERVICE_NAME:-koi}"
 fi
 
 port="${KOI_PORT:-7071}"
-unset KOI_API_KEY_1 KOI_API_KEY_2
+unset KOI_API_KEY_1 KOI_API_KEY_2 service_version
 
 cd "$repo_root/src/Koi.Functions"
 exec func start --port "$port"

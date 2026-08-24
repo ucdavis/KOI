@@ -18,6 +18,8 @@ jobs:
     name: Build deployment artifact
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      service_version: ${{ steps.metadata.outputs.service_version }}
 
     steps:
       - name: Check out repository
@@ -32,6 +34,17 @@ jobs:
 
       - name: Restore locked dependencies
         run: ./scripts/build.sh restore
+
+      - name: Read service metadata
+        id: metadata
+        shell: bash
+        run: |
+          service_version="$(dotnet msbuild src/Koi.Functions/Koi.Functions.csproj -getProperty:Version -nologo)"
+          if [[ ! "$service_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Project Version is missing or invalid: $service_version" >&2
+            exit 1
+          fi
+          echo "service_version=$service_version" >>"$GITHUB_OUTPUT"
 
       - name: Run automated tests
         env:
@@ -144,6 +157,7 @@ jobs:
             otelExporterOtlpEndpoint="$OTEL_EXPORTER_OTLP_ENDPOINT"
             otelExporterOtlpHeaders="$OTEL_EXPORTER_OTLP_HEADERS"
             otelExporterOtlpProtocol="$OTEL_EXPORTER_OTLP_PROTOCOL"
+            serviceVersion="${{ needs.build.outputs.service_version }}"
           )
 
           az deployment group what-if \
