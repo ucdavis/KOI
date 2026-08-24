@@ -143,15 +143,18 @@ jobs:
 
           function_app_name="$(jq -r '.functionAppName.value' <<<"$deployment_outputs")"
           function_url="$(jq -r '.functionAppUrl.value' <<<"$deployment_outputs")"
+          application_insights_name="$(jq -r '.applicationInsightsName.value' <<<"$deployment_outputs")"
 
           if [[ -z "$function_app_name" || "$function_app_name" == "null" \
-            || ! "$function_url" =~ ^https://[a-z0-9-]+\.azurewebsites\.net$ ]]; then
+            || ! "$function_url" =~ ^https://[a-z0-9-]+\.azurewebsites\.net$ \
+            || -z "$application_insights_name" || "$application_insights_name" == "null" ]]; then
             echo "Bicep deployment returned invalid Function outputs." >&2
             exit 1
           fi
 
           echo "function_app_name=$function_app_name" >>"$GITHUB_OUTPUT"
           echo "function_url=$function_url" >>"$GITHUB_OUTPUT"
+          echo "application_insights_name=$application_insights_name" >>"$GITHUB_OUTPUT"
 
       - name: Deploy Function package
         run: |
@@ -172,6 +175,7 @@ jobs:
             echo
             echo '- Resource group: `${{ vars.AZURE_RESOURCE_GROUP }}`'
             echo '- Function app: `${{ steps.infrastructure.outputs.function_app_name }}`'
+            echo '- Application Insights: `${{ steps.infrastructure.outputs.application_insights_name }}`'
             echo '- URL: ${{ steps.infrastructure.outputs.function_url }}'
             echo '- Revision: `${{ github.sha }}`'
           } >>"$GITHUB_STEP_SUMMARY"

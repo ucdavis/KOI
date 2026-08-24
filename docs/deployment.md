@@ -106,10 +106,16 @@ The automated smoke test waits for the expected Git revision and verifies:
 - unauthorized responses advertise `WWW-Authenticate: Bearer`
 
 Because GitHub never receives plaintext KOI tokens, verify both active slots
-from the trusted local handoff after deployment:
+from the trusted local handoff after deployment. Use the Application Insights
+name from the deployment summary so the same check waits for both successful
+requests in telemetry and locally verifies that the resulting telemetry does
+not contain either token or its recognizable prefix or suffix:
 
 ```bash
-./scripts/smoke-authenticated.sh https://<function-app>.azurewebsites.net
+./scripts/smoke-authenticated.sh \
+  https://<function-app>.azurewebsites.net \
+  rg-koi-test \
+  <application-insights-name>
 ```
 
 For a direct call with the first test token:
