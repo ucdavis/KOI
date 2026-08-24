@@ -32,6 +32,8 @@ receive the same `401 Unauthorized` response.
 
 Plaintext development keys belong only in the gitignored `.env`. Never put a
 real token in source, tests, GitHub configuration, logs, or documentation.
+See [API key management](docs/api-key-management.md) for production key
+generation, configuration, and rotation.
 
 ## Local development
 
