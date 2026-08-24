@@ -107,10 +107,24 @@ jq -n '{wait_timer:0,deployment_branch_policy:{protected_branches:false,custom_b
       --input - \
       --silent
 
-branch_policy_count="$(gh api \
-  "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/environments/$GITHUB_ENVIRONMENT/deployment-branch-policies" \
-  --jq '[.branch_policies[] | select(.name == "main" and .type == "branch")] | length')"
-if [[ "$branch_policy_count" -eq 0 ]]; then
+main_branch_policy_id=""
+while IFS=$'\t' read -r policy_id policy_name policy_type; do
+  if [[ "$policy_name" == "main" && "$policy_type" == "branch" \
+    && -z "$main_branch_policy_id" ]]; then
+    main_branch_policy_id="$policy_id"
+    continue
+  fi
+
+  gh api \
+    --method DELETE \
+    "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/environments/$GITHUB_ENVIRONMENT/deployment-branch-policies/$policy_id" \
+    --silent
+done < <(gh api \
+  --paginate \
+  "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/environments/$GITHUB_ENVIRONMENT/deployment-branch-policies?per_page=100" \
+  --jq '.branch_policies[] | [.id, .name, .type] | @tsv')
+
+if [[ -z "$main_branch_policy_id" ]]; then
   gh api \
     --method POST \
     "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/environments/$GITHUB_ENVIRONMENT/deployment-branch-policies" \
