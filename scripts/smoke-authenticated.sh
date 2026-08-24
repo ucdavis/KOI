@@ -28,12 +28,12 @@ for key_variable in KOI_API_KEY_1 KOI_API_KEY_2; do
     exit 1
   fi
 
-  status="$(curl \
+  status="$(printf 'Authorization: Bearer %s\n' "$token" | curl \
     --silent \
     --show-error \
     --connect-timeout 10 \
     --max-time 30 \
-    --header "Authorization: Bearer $token" \
+    --header @- \
     --output /dev/null \
     --write-out '%{http_code}' \
     "$base_url/api/v1/hello")"
