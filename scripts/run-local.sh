@@ -41,6 +41,24 @@ export ApiKeys__Credentials__1__Id="$KOI_API_KEY_2_ID"
 export ApiKeys__Credentials__1__Sha256="$(sha256 "$KOI_API_KEY_2")"
 export ApiKeys__Credentials__1__Enabled=true
 
+test_env_file="$repo_root/.env.test"
+if [[ -f "$test_env_file" ]]; then
+  chmod 600 "$test_env_file"
+  while IFS= read -r -d '' variable && IFS= read -r -d '' value; do
+    printf -v "$variable" '%s' "$value"
+    export "$variable"
+  done < <(
+    unset OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_HEADERS OTEL_EXPORTER_OTLP_PROTOCOL
+    # shellcheck disable=SC1090
+    source "$test_env_file"
+    for variable in OTEL_EXPORTER_OTLP_ENDPOINT OTEL_EXPORTER_OTLP_HEADERS OTEL_EXPORTER_OTLP_PROTOCOL; do
+      if [[ -n "${!variable+x}" ]]; then
+        printf '%s\0%s\0' "$variable" "${!variable}"
+      fi
+    done
+  )
+fi
+
 if [[ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
   service_version="$(dotnet msbuild \
     "$repo_root/src/Koi.Functions/Koi.Functions.csproj" \
@@ -67,7 +85,7 @@ if [[ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
 fi
 
 port="${KOI_PORT:-7071}"
-unset KOI_API_KEY_1 KOI_API_KEY_2 service_version resource_attributes resource_attribute custom_resource_attributes_joined
+unset KOI_API_KEY_1 KOI_API_KEY_2 service_version resource_attributes resource_attribute custom_resource_attributes_joined variable value
 
 cd "$repo_root/src/Koi.Functions"
 exec func start --port "$port"
