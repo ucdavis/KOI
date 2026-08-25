@@ -59,9 +59,10 @@ Create two independent test credentials:
 
 This creates a gitignored, mode-`600` `.env.test` handoff file. Move both
 plaintext tokens to the approved password manager. Never put them in GitHub or
-Azure configuration. The local file is retained only so an operator can prove
-both credential slots after deployment; remove it after the tokens are safely
-stored and configured in Kuali.
+Azure configuration. Retain the local file only while an operator needs it for
+authenticated deployment checks or the local Elastic exporter handoff; remove
+it after the tokens are safely stored and configured in Kuali and those checks
+are complete.
 
 Run the idempotent bootstrap:
 
@@ -124,9 +125,12 @@ deployment.environment=<test or production>
 service.namespace=ucdavis
 ```
 
-Local startup supplies the same attributes with
-`deployment.environment=local`. Do not deploy until the endpoint, resolved
-protocol, and authentication header are present in GitHub.
+When `.env.test` exists, `./scripts/run-local.sh` imports only its three
+`OTEL_EXPORTER_OTLP_*` values; local API credentials continue to come from
+`.env`. The helper derives `service.version` from `Koi.Functions.csproj` and
+supplies the same resource attributes with `deployment.environment=local`, so
+`OTEL_RESOURCE_ATTRIBUTES` is not required. Do not deploy until the endpoint,
+resolved protocol, and authentication header are present in GitHub.
 
 ## GitHub Actions
 
