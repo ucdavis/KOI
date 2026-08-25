@@ -178,7 +178,6 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     AzureWebJobsStorage: storageConnectionString
     DEPLOYMENT_STORAGE_CONNECTION_STRING: storageConnectionString
     FUNCTIONS_EXTENSION_VERSION: '~4'
-    FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
     OTEL_EXPORTER_OTLP_ENDPOINT: otelExporterOtlpEndpoint
     OTEL_EXPORTER_OTLP_HEADERS: otelExporterOtlpHeaders
     OTEL_EXPORTER_OTLP_PROTOCOL: otelExporterOtlpProtocol
