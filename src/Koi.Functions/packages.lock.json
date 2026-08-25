@@ -2,6 +2,16 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Dotenv.Extensions.Microsoft.Configuration": {
+        "type": "Direct",
+        "requested": "[3.1.0, )",
+        "resolved": "3.1.0",
+        "contentHash": "jdnWAfpCpKjFgvCRbKVpu7z3TDe5ggqMeW9uEZS8Qx0rWGjJG3GqSpxA6bpzLC8XNAU06Hdt7nZ7daCh8R4+gA==",
+        "dependencies": {
+          "DotEnv.Core": "3.1.0",
+          "Microsoft.Extensions.Configuration": "6.0.0"
+        }
+      },
       "Microsoft.Azure.Functions.Worker": {
         "type": "Direct",
         "requested": "[2.52.0, )",
@@ -72,6 +82,11 @@
           "System.ClientModel": "1.1.0",
           "System.Memory.Data": "6.0.0"
         }
+      },
+      "DotEnv.Core": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "zy7ybm9fHLoN4grng0tfUYnFQ6HIizb3jPc1Z6bC2jlJqxLkaVfCfHhnUVG/5viufM+Cr1QI/IGxWXcsxzgsXA=="
       },
       "Google.Protobuf": {
         "type": "Transitive",

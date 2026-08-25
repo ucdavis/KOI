@@ -125,12 +125,15 @@ deployment.environment=<test or production>
 service.namespace=ucdavis
 ```
 
-When `.env.test` exists, `./scripts/run-local.sh` imports only its three
-`OTEL_EXPORTER_OTLP_*` values; local API credentials continue to come from
-`.env`. The helper derives `service.version` from `Koi.Functions.csproj` and
-supplies the same resource attributes with `deployment.environment=local`, so
-`OTEL_RESOURCE_ATTRIBUTES` is not required. Do not deploy until the endpoint,
-resolved protocol, and authentication header are present in GitHub.
+For local telemetry, copy the same three `OTEL_EXPORTER_OTLP_*` values into the
+gitignored `.env`. Development startup loads them for both Visual Studio and
+`./scripts/run-local.sh`. The application derives `service.version` from its
+assembly and supplies the same resource attributes with
+`deployment.environment=local`, so `OTEL_RESOURCE_ATTRIBUTES` is not required.
+`.env.test` remains the secure deployment handoff used by the GitHub
+configuration and authenticated deployed smoke scripts. Do not deploy until
+the endpoint, resolved protocol, and authentication header are present in
+GitHub.
 
 ## GitHub Actions
 

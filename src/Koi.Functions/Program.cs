@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Koi.Functions.Authentication;
+using Koi.Functions.Configuration;
 using Koi.Functions.Telemetry;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
@@ -9,6 +10,15 @@ using OpenTelemetry;
 using OpenTelemetry.Metrics;
 
 var builder = FunctionsApplication.CreateBuilder(args);
+
+if (builder.Environment.IsDevelopment()
+    || string.Equals(
+        Environment.GetEnvironmentVariable("AZURE_FUNCTIONS_ENVIRONMENT"),
+        Environments.Development,
+        StringComparison.OrdinalIgnoreCase))
+{
+    LocalDevelopmentConfiguration.Add(builder.Configuration);
+}
 
 builder.UseMiddleware<InvocationMetricsMiddleware>();
 builder.UseMiddleware<ApiKeyAuthenticationMiddleware>();

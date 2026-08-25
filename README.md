@@ -50,7 +50,8 @@ Create two fresh local credentials if `.env` does not already exist:
 ./scripts/create-local-env.sh
 ```
 
-The generated file is mode `600`. Start the Function host:
+The generated file is mode `600` and contains Azure-shaped credential IDs and
+hashes plus the matching plaintext local client tokens. Start the Function host:
 
 ```bash
 ./scripts/run-local.sh
@@ -62,8 +63,20 @@ In another terminal, exercise the complete local contract:
 ./scripts/smoke-local.sh
 ```
 
-The run helper derives hashes and exports only the key IDs and hashes to the
-Function process. It does not export the plaintext `.env` variables.
+The Function loads the gitignored `.env` only in the local Development
+environment. Environment variables take precedence, so deployed Azure settings
+remain authoritative.
+
+### Visual Studio on Windows
+
+Copy
+`src/Koi.Functions/local.settings.json.example` to
+`src/Koi.Functions/local.settings.json`, place the correctly generated `.env`
+at the repository root, set `Koi.Functions` as the startup project, and press
+F5. `local.settings.json` supplies only the Functions host settings; application
+configuration comes from `.env`. The health endpoint is then available at
+`http://localhost:7071/api/health`. Use either plaintext local token from `.env`
+as a Bearer token when calling authenticated endpoints from an API client.
 
 Run the automated test suite with:
 
