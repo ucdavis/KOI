@@ -13,11 +13,21 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.52.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
+    <PackageReference Include="Microsoft.Azure.Functions.Worker.OpenTelemetry" Version="1.2.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.1.0" />
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.18.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.18.0" />
   </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="Koi.Functions.Tests" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(SourceRevisionId)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>BuildRevision</_Parameter1>
+      <_Parameter2>$(SourceRevisionId)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
 
 </Project>

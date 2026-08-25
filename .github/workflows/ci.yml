@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - name: Restore locked dependencies
+        run: ./scripts/build.sh restore
+
+      - name: Run automated tests
+        env:
+          KOI_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/build.sh test
+
+      - name: Install pinned Bicep CLI
+        run: az bicep install --version v0.46.1
+
+      - name: Publish Function and compile Bicep
+        env:
+          KOI_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: ./scripts/build.sh package

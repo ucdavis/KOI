@@ -10,7 +10,7 @@ authentication.
 
 | Method | Route | Authentication | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.0"}` |
+| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.0","revision":"<git-sha-or-local>"}` |
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
 
 All HTTP functions require authentication by default. The health function is
@@ -71,4 +71,19 @@ Run the automated test suite with:
 dotnet test
 ```
 
-Azure infrastructure and GitHub deployment workflows will be added separately.
+## Azure deployment
+
+KOI test infrastructure is declared in Bicep and deployed from GitHub Actions.
+The pipeline builds and tests once, compiles the Bicep, uploads an immutable
+artifact, synchronizes Azure infrastructure, deploys that exact Function
+package, and verifies the public contract. The Function exports telemetry
+directly to the central Elastic collector over OTLP; Application Insights and
+Log Analytics are not provisioned.
+
+The one-time bootstrap creates the Bicep-managed resource group and deployment
+managed identity, the environment-scoped GitHub OIDC trust, and the GitHub
+`test` environment. It does not create an Azure client secret, and GitHub
+receives only API-key IDs and SHA-256 hashes, never plaintext tokens.
+
+See [Azure deployment](docs/deployment.md) for the resource boundary,
+bootstrap procedure, deployment flow, verification, and rollback.
