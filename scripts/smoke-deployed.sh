@@ -60,7 +60,7 @@ if [[ "$unauthenticated_status" != "401" ]]; then
   exit 1
 fi
 
-if ! awk 'BEGIN { IGNORECASE=1 } /^WWW-Authenticate:[[:space:]]*Bearer\r?$/ { found=1 } END { exit !found }' "$response_headers"; then
+if ! awk '{ line=tolower($0); sub(/\r$/, "", line) } line ~ /^www-authenticate:[[:space:]]*bearer$/ { found=1 } END { exit !found }' "$response_headers"; then
   echo "Unauthenticated hello response is missing WWW-Authenticate: Bearer." >&2
   exit 1
 fi
