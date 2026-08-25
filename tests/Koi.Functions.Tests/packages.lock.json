@@ -45,6 +45,20 @@
           "System.Memory.Data": "6.0.0"
         }
       },
+      "DotEnv.Core": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "zy7ybm9fHLoN4grng0tfUYnFQ6HIizb3jPc1Z6bC2jlJqxLkaVfCfHhnUVG/5viufM+Cr1QI/IGxWXcsxzgsXA=="
+      },
+      "Dotenv.Extensions.Microsoft.Configuration": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "jdnWAfpCpKjFgvCRbKVpu7z3TDe5ggqMeW9uEZS8Qx0rWGjJG3GqSpxA6bpzLC8XNAU06Hdt7nZ7daCh8R4+gA==",
+        "dependencies": {
+          "DotEnv.Core": "3.1.0",
+          "Microsoft.Extensions.Configuration": "6.0.0"
+        }
+      },
       "Google.Protobuf": {
         "type": "Transitive",
         "resolved": "3.28.0",
@@ -576,6 +590,7 @@
       "koi.functions": {
         "type": "Project",
         "dependencies": {
+          "Dotenv.Extensions.Microsoft.Configuration": "[3.1.0, )",
           "Microsoft.Azure.Functions.Worker": "[2.52.0, )",
           "Microsoft.Azure.Functions.Worker.Extensions.Http": "[3.3.0, )",
           "Microsoft.Azure.Functions.Worker.OpenTelemetry": "[1.2.0, )",

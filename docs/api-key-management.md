@@ -99,5 +99,13 @@ observation period.
 ## Local-only keys
 
 For development, `./scripts/create-local-env.sh` creates two independent
-256-bit tokens in a gitignored, mode-`600` `.env`. Never promote those local
-tokens to a deployed environment.
+256-bit tokens and their matching SHA-256 hashes in a gitignored, mode-`600`
+`.env`. The hashes use the same `ApiKeys__Credentials__*` configuration names
+as Azure; the plaintext `KOI_API_KEY_*` values are available only for local
+smoke tests and API clients. Never promote those local tokens to a deployed
+environment.
+
+The Function loads `.env` only when the Functions environment is Development.
+This deliberately allows disposable plaintext local tokens to exist in the
+local Function process configuration for a simple Visual Studio F5 workflow.
+Azure deployments continue to receive only IDs, hashes, and enabled state.
