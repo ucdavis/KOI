@@ -171,6 +171,8 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
   }
 }
 
+// Flex Consumption takes the worker runtime from functionAppConfig.runtime and
+// rejects FUNCTIONS_WORKER_RUNTIME when it is duplicated in app settings.
 resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
   parent: functionApp
   name: 'appsettings'
