@@ -49,28 +49,25 @@ if [[ -n "${OTEL_EXPORTER_OTLP_ENDPOINT:-}" ]]; then
   export OTEL_EXPORTER_OTLP_ENDPOINT
   export OTEL_EXPORTER_OTLP_HEADERS="${OTEL_EXPORTER_OTLP_HEADERS:-}"
   export OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
-  custom_resource_attributes=()
+  custom_resource_attributes_joined=
+  resource_attributes=()
   IFS=',' read -ra resource_attributes <<<"${OTEL_RESOURCE_ATTRIBUTES:-}"
-  for resource_attribute in "${resource_attributes[@]}"; do
+  for resource_attribute in "${resource_attributes[@]-}"; do
     case "${resource_attribute%%=*}" in
       service.name|service.version|deployment.environment|service.namespace) ;;
       *)
         if [[ -n "$resource_attribute" ]]; then
-          custom_resource_attributes+=("$resource_attribute")
+          custom_resource_attributes_joined+=",$resource_attribute"
         fi
         ;;
     esac
   done
-  custom_resource_attributes_joined=
-  if (( ${#custom_resource_attributes[@]} > 0 )); then
-    printf -v custom_resource_attributes_joined ',%s' "${custom_resource_attributes[@]}"
-  fi
   export OTEL_RESOURCE_ATTRIBUTES="service.name=koi,service.version=$service_version,deployment.environment=local${custom_resource_attributes_joined},service.namespace=ucdavis"
   export OTEL_SERVICE_NAME=koi
 fi
 
 port="${KOI_PORT:-7071}"
-unset KOI_API_KEY_1 KOI_API_KEY_2 service_version resource_attributes resource_attribute custom_resource_attributes custom_resource_attributes_joined
+unset KOI_API_KEY_1 KOI_API_KEY_2 service_version resource_attributes resource_attribute custom_resource_attributes_joined
 
 cd "$repo_root/src/Koi.Functions"
 exec func start --port "$port"
