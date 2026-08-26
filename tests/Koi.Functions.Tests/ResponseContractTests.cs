@@ -18,7 +18,7 @@ public sealed class ResponseContractTests
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
-        Assert.Equal("0.1.0", response.Version);
+        Assert.Equal("0.1.1", response.Version);
         Assert.NotEmpty(response.Revision);
     }
 
@@ -45,5 +45,22 @@ public sealed class ResponseContractTests
         Assert.Equal("GL", response.ChartType);
         Assert.Equal("example", response.ChartString);
         Assert.Equal(FinancialChartStringType.Gl, response.ChartStringType);
+    }
+
+    [Fact]
+    public void FinancialValidationContractIsStable()
+    {
+        var response = new FinancialValidationResult
+        {
+            ChartString = "example",
+            IsValid = true,
+            IsWarning = true,
+            ErrorMessage = "example warning"
+        };
+
+        Assert.Equal("example", response.ChartString);
+        Assert.True(response.IsValid);
+        Assert.True(response.IsWarning);
+        Assert.Equal("example warning", response.ErrorMessage);
     }
 }
