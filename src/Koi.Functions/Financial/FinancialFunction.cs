@@ -29,7 +29,7 @@ public sealed class FinancialFunction
         string value,
         CancellationToken cancellationToken)
     {
-        var aeDetails = await _aggieEnterpriseService.GetAeDetailsAsync(value);
+        var aeDetails = await _aggieEnterpriseService.GetAeDetailsAsync(value, cancellationToken);
         var response = request.CreateResponse();
         response.StatusCode = HttpStatusCode.OK;
         await response.WriteAsJsonAsync(aeDetails, cancellationToken);
@@ -97,9 +97,11 @@ public sealed class FinancialFunction
                 CancellationToken = cancellationToken,
                 MaxDegreeOfParallelism = MaxConcurrency
             },
-            async (index, _) =>
+            async (index, iterationCancellationToken) =>
             {
-                results[index] = await _aggieEnterpriseService.GetAeDetailsAsync(chartStrings[index]);
+                results[index] = await _aggieEnterpriseService.GetAeDetailsAsync(
+                    chartStrings[index],
+                    iterationCancellationToken);
             });
 
         return results;

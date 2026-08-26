@@ -19,6 +19,19 @@ namespace Koi.Functions.Tests.Financial;
 public sealed class FinancialFunctionTests
 {
     [Fact]
+    public async Task RunPassesCancellationTokenToService()
+    {
+        var service = new TrackingAggieEnterpriseService();
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(string.Empty);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        await function.Run(request, "chart", cancellationTokenSource.Token);
+
+        Assert.Equal([cancellationTokenSource.Token], service.CancellationTokens);
+    }
+
+    [Fact]
     public async Task RunBulkReturnsBadRequestWhenBatchExceedsMaximum()
     {
         var service = new TrackingAggieEnterpriseService();
@@ -51,8 +64,9 @@ public sealed class FinancialFunctionTests
             .Select(index => $"chart-{index}")
             .ToArray();
         var request = TestHttpRequestData.Create(JsonSerializer.Serialize(chartStrings));
+        using var cancellationTokenSource = new CancellationTokenSource();
 
-        var response = await function.RunBulk(request, CancellationToken.None);
+        var response = await function.RunBulk(request, cancellationTokenSource.Token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -63,6 +77,9 @@ public sealed class FinancialFunctionTests
         Assert.NotEqual(chartStrings, service.CompletionOrder);
         Assert.Equal(FinancialFunction.MaxBatchSize, service.CallCount);
         Assert.InRange(service.MaxConcurrentCalls, 2, FinancialFunction.MaxConcurrency);
+        Assert.All(
+            service.CancellationTokens,
+            cancellationToken => Assert.True(cancellationToken.CanBeCanceled));
     }
 
     private sealed class TrackingAggieEnterpriseService(bool delayCalls = false)
@@ -71,17 +88,23 @@ public sealed class FinancialFunctionTests
         private int _activeCalls;
         private int _callCount;
         private int _maxConcurrentCalls;
+        private readonly ConcurrentQueue<CancellationToken> _cancellationTokens = [];
         private readonly ConcurrentQueue<string> _completionOrder = [];
 
         public int CallCount => _callCount;
 
         public int MaxConcurrentCalls => _maxConcurrentCalls;
 
+        public CancellationToken[] CancellationTokens => _cancellationTokens.ToArray();
+
         public string[] CompletionOrder => _completionOrder.ToArray();
 
-        public async Task<AeDetails> GetAeDetailsAsync(string segmentString)
+        public async Task<AeDetails> GetAeDetailsAsync(
+            string segmentString,
+            CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _callCount);
+            _cancellationTokens.Enqueue(cancellationToken);
             var activeCalls = Interlocked.Increment(ref _activeCalls);
             UpdateMaxConcurrentCalls(activeCalls);
 
@@ -94,7 +117,7 @@ public sealed class FinancialFunctionTests
                         CultureInfo.InvariantCulture);
                     var delayMultiplier = FinancialFunction.MaxConcurrency -
                         (index % FinancialFunction.MaxConcurrency);
-                    await Task.Delay(delayMultiplier * 5);
+                    await Task.Delay(delayMultiplier * 5, cancellationToken);
                 }
 
                 _completionOrder.Enqueue(segmentString);

@@ -4,5 +4,7 @@ namespace Koi.Functions.Financial.Services;
 
 public interface IAggieEnterpriseService
 {
-    Task<AeDetails> GetAeDetailsAsync(string segmentString);
+    Task<AeDetails> GetAeDetailsAsync(
+        string segmentString,
+        CancellationToken cancellationToken);
 }

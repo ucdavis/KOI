@@ -31,7 +31,9 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             $"{options.ScopeApp}-{options.ScopeEnv}");
     }
 
-    public async Task<AeDetails> GetAeDetailsAsync(string segmentString)
+    public async Task<AeDetails> GetAeDetailsAsync(
+        string segmentString,
+        CancellationToken cancellationToken)
     {
 
         var aeDetails = new AeDetails();
@@ -73,12 +75,12 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
 
         if (aeDetails.ChartStringType == FinancialChartStringType.Gl)
         {
-            return await GetGlDetailsAsync(aeDetails, segmentString);
+            return await GetGlDetailsAsync(aeDetails, segmentString, cancellationToken);
         }
 
         if (aeDetails.ChartStringType == FinancialChartStringType.Ppm)
         {
-            return await GetPpmDetailsAsync(aeDetails, segmentString);
+            return await GetPpmDetailsAsync(aeDetails, segmentString, cancellationToken);
         }
 
         aeDetails.Errors.Add("Unknow Error");
@@ -86,7 +88,10 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         return aeDetails;
     }
 
-    private async Task<AeDetails> GetGlDetailsAsync(AeDetails aeDetails, string segmentString)
+    private async Task<AeDetails> GetGlDetailsAsync(
+        AeDetails aeDetails,
+        string segmentString,
+        CancellationToken cancellationToken)
     {
         var glSegments = FinancialChartValidation.GetGlSegments(segmentString);
         var result = await _apiClient.DisplayDetailsGl.ExecuteAsync(
@@ -99,7 +104,8 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             account: glSegments.Account,
             purpose: glSegments.Purpose,
             program: glSegments.Program,
-            activity: glSegments.Activity);
+            activity: glSegments.Activity,
+            cancellationToken: cancellationToken);
 
         var data = result.ReadData();
         if (data is null)
@@ -118,7 +124,10 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         return aeDetails;
     }
 
-    private async Task<AeDetails> GetPpmDetailsAsync(AeDetails aeDetails, string segmentString)
+    private async Task<AeDetails> GetPpmDetailsAsync(
+        AeDetails aeDetails,
+        string segmentString,
+        CancellationToken cancellationToken)
     {
         var ppmSegments = FinancialChartValidation.GetPpmSegments(segmentString);
         var result = await _apiClient.DisplayDetailsPpm.ExecuteAsync(
@@ -127,7 +136,8 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             segmentString: segmentString,
             taskNumber: ppmSegments.Task,
             expendCode: ppmSegments.ExpenditureType,
-            organization: ppmSegments.Organization);
+            organization: ppmSegments.Organization,
+            cancellationToken: cancellationToken);
 
         var data = result.ReadData();
         if (data is null)
@@ -138,11 +148,11 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         }
 
         SetPpmValidationInfo(aeDetails, data);
-        await SetPpmOrgApproversAsync(aeDetails, data);
+        await SetPpmOrgApproversAsync(aeDetails, data, cancellationToken);
         SetPoetSegmentDetails(aeDetails, ppmSegments, data);
-        await SetExtraPpmSegmentDetailsAsync(aeDetails, data);
-        await SetAwardSpecificPpmGlInfoAsync(aeDetails, data);
-        await SetPpmPostingSegmentDetailsAsync(aeDetails, data);
+        await SetExtraPpmSegmentDetailsAsync(aeDetails, data, cancellationToken);
+        await SetAwardSpecificPpmGlInfoAsync(aeDetails, data, cancellationToken);
+        await SetPpmPostingSegmentDetailsAsync(aeDetails, data, cancellationToken);
         SetPpmDetails(aeDetails, data, ppmSegments);
 
         aeDetails.SegmentDetails = aeDetails.SegmentDetails.OrderBy(segment => segment.Order).ToList();
@@ -276,7 +286,10 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         }
     }
 
-    private async Task SetPpmOrgApproversAsync(AeDetails aeDetails, IDisplayDetailsPpmResult data)
+    private async Task SetPpmOrgApproversAsync(
+        AeDetails aeDetails,
+        IDisplayDetailsPpmResult data,
+        CancellationToken cancellationToken)
     {
         if (data.PpmProjectByNumber?.ProjectOrganizationName is null)
         {
@@ -286,7 +299,9 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         try
         {
             var projectOrgCode = data.PpmProjectByNumber.ProjectOrganizationName.Split('-')[0].Trim();
-            var result = await _apiClient.ErpDepartmentApprovers.ExecuteAsync(projectOrgCode);
+            var result = await _apiClient.ErpDepartmentApprovers.ExecuteAsync(
+                projectOrgCode,
+                cancellationToken);
             var approvers = result.ReadData();
 
             if (approvers?.ErpFinancialDepartment?.Approvers is null)
@@ -304,6 +319,10 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                     Email = approver.EmailAddress
                 });
             }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
@@ -349,7 +368,10 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         });
     }
 
-    private async Task SetExtraPpmSegmentDetailsAsync(AeDetails aeDetails, IDisplayDetailsPpmResult data)
+    private async Task SetExtraPpmSegmentDetailsAsync(
+        AeDetails aeDetails,
+        IDisplayDetailsPpmResult data,
+        CancellationToken cancellationToken)
     {
         if (!string.IsNullOrWhiteSpace(data.PpmSegmentStringValidate.Segments.Award))
         {
@@ -384,18 +406,21 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             Entity = "GL Entity",
             Code = data.PpmProjectByNumber.GlPostingEntityCode
         };
-        segment.Name = await FindEntityNameAsync(segment.Code);
+        segment.Name = await FindEntityNameAsync(segment.Code, cancellationToken);
         aeDetails.SegmentDetails.Add(segment);
     }
 
-    private async Task SetAwardSpecificPpmGlInfoAsync(AeDetails aeDetails, IDisplayDetailsPpmResult data)
+    private async Task SetAwardSpecificPpmGlInfoAsync(
+        AeDetails aeDetails,
+        IDisplayDetailsPpmResult data,
+        CancellationToken cancellationToken)
     {
         var awardDetail = aeDetails.SegmentDetails.SingleOrDefault(segment => segment.Entity == "Award");
         if (awardDetail is not null)
         {
             aeDetails.PpmDetails ??= new PpmDetails();
 
-            var awardResult = await GetAwardAsync(awardDetail.Code);
+            var awardResult = await GetAwardAsync(awardDetail.Code, cancellationToken);
             if (awardResult is not null)
             {
                 awardDetail.Name = awardResult.Name;
@@ -433,7 +458,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                         Entity = "GL Fund",
                         Code = awardResult.GlFundCode
                     };
-                    await SetPpmFundDetailsAsync(aeDetails, segment);
+                    await SetPpmFundDetailsAsync(aeDetails, segment, cancellationToken);
                     aeDetails.SegmentDetails.Add(segment);
                 }
 
@@ -445,7 +470,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                         Entity = "GL Purpose",
                         Code = awardResult.GlPurposeCode
                     };
-                    segment.Name = await FindPurposeNameAsync(segment.Code);
+                    segment.Name = await FindPurposeNameAsync(segment.Code, cancellationToken);
                     aeDetails.SegmentDetails.Add(segment);
                 }
 
@@ -486,11 +511,16 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             .SingleOrDefault(segment => segment.Entity == "Funding Source");
         if (fundingSourceDetail?.Code is not null)
         {
-            fundingSourceDetail.Name = await FindFundingSourceNameAsync(fundingSourceDetail.Code);
+            fundingSourceDetail.Name = await FindFundingSourceNameAsync(
+                fundingSourceDetail.Code,
+                cancellationToken);
         }
     }
 
-    private async Task SetPpmPostingSegmentDetailsAsync(AeDetails aeDetails, IDisplayDetailsPpmResult data)
+    private async Task SetPpmPostingSegmentDetailsAsync(
+        AeDetails aeDetails,
+        IDisplayDetailsPpmResult data,
+        CancellationToken cancellationToken)
     {
         if (data.PpmTaskByProjectNumberAndTaskNumber?.GlPostingFundCode is not null)
         {
@@ -500,7 +530,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                 Entity = "GL Posting Fund",
                 Code = data.PpmTaskByProjectNumberAndTaskNumber.GlPostingFundCode
             };
-            await SetPpmFundDetailsAsync(aeDetails, segment);
+            await SetPpmFundDetailsAsync(aeDetails, segment, cancellationToken);
             aeDetails.SegmentDetails.Add(segment);
         }
 
@@ -512,7 +542,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                 Entity = "GL Posting Purpose",
                 Code = data.PpmTaskByProjectNumberAndTaskNumber.GlPostingPurposeCode
             };
-            segment.Name = await FindPurposeNameAsync(segment.Code);
+            segment.Name = await FindPurposeNameAsync(segment.Code, cancellationToken);
             aeDetails.SegmentDetails.Add(segment);
         }
 
@@ -524,7 +554,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                 Entity = "GL Posting Program",
                 Code = data.PpmTaskByProjectNumberAndTaskNumber.GlPostingProgramCode
             };
-            segment.Name = await FindProgramNameAsync(segment.Code);
+            segment.Name = await FindProgramNameAsync(segment.Code, cancellationToken);
             aeDetails.SegmentDetails.Add(segment);
         }
 
@@ -536,7 +566,7 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
                 Entity = "GL Posting Activity",
                 Code = data.PpmTaskByProjectNumberAndTaskNumber.GlPostingActivityCode
             };
-            segment.Name = await FindActivityNameAsync(segment.Code);
+            segment.Name = await FindActivityNameAsync(segment.Code, cancellationToken);
             aeDetails.SegmentDetails.Add(segment);
         }
 
@@ -654,14 +684,17 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         }
     }
 
-    private async Task SetPpmFundDetailsAsync(AeDetails aeDetails, SegmentDetails segment)
+    private async Task SetPpmFundDetailsAsync(
+        AeDetails aeDetails,
+        SegmentDetails segment,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(segment.Code))
         {
             return;
         }
 
-        var result = await _apiClient.FundDetails.ExecuteAsync(segment.Code);
+        var result = await _apiClient.FundDetails.ExecuteAsync(segment.Code, cancellationToken);
         var data = result.ReadData();
         if (data?.ErpFund is null)
         {
@@ -674,11 +707,14 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         SetFundPurpose(aeDetails, data.ErpFund.FundPurpose);
     }
 
-    private async Task<string?> FindEntityNameAsync(string code)
+    private async Task<string?> FindEntityNameAsync(
+        string code,
+        CancellationToken cancellationToken)
     {
         var result = await _apiClient.ErpEntitySearch.ExecuteAsync(
             new ErpEntityFilterInput { Name = new StringFilterInput { Contains = ToFuzzyQuery(code) } },
-            ToUpperTrim(code));
+            ToUpperTrim(code),
+            cancellationToken);
         var data = result.ReadData();
 
         var match = data.ErpEntitySearch.Data
@@ -693,11 +729,14 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             : null;
     }
 
-    private async Task<string?> FindPurposeNameAsync(string code)
+    private async Task<string?> FindPurposeNameAsync(
+        string code,
+        CancellationToken cancellationToken)
     {
         var result = await _apiClient.ErpPurposeSearch.ExecuteAsync(
             new ErpPurposeFilterInput { Name = new StringFilterInput { Contains = ToFuzzyQuery(code) } },
-            ToUpperTrim(code));
+            ToUpperTrim(code),
+            cancellationToken);
         var data = result.ReadData();
 
         var match = data.ErpPurposeSearch.Data
@@ -712,11 +751,14 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             : null;
     }
 
-    private async Task<string?> FindProgramNameAsync(string code)
+    private async Task<string?> FindProgramNameAsync(
+        string code,
+        CancellationToken cancellationToken)
     {
         var result = await _apiClient.ErpProgramSearch.ExecuteAsync(
             new ErpProgramFilterInput { Name = new StringFilterInput { Contains = ToFuzzyQuery(code) } },
-            ToUpperTrim(code));
+            ToUpperTrim(code),
+            cancellationToken);
         var data = result.ReadData();
 
         var match = data.ErpProgramSearch.Data
@@ -731,11 +773,14 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             : null;
     }
 
-    private async Task<string?> FindActivityNameAsync(string code)
+    private async Task<string?> FindActivityNameAsync(
+        string code,
+        CancellationToken cancellationToken)
     {
         var result = await _apiClient.ErpActivitySearch.ExecuteAsync(
             new ErpActivityFilterInput { Name = new StringFilterInput { Contains = ToFuzzyQuery(code) } },
-            ToUpperTrim(code));
+            ToUpperTrim(code),
+            cancellationToken);
         var data = result.ReadData();
 
         var match = data.ErpActivitySearch.Data
@@ -750,14 +795,17 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             : null;
     }
 
-    private async Task<string?> FindFundingSourceNameAsync(string code)
+    private async Task<string?> FindFundingSourceNameAsync(
+        string code,
+        CancellationToken cancellationToken)
     {
         var result = await _apiClient.PpmFundingSourceSearch.ExecuteAsync(
             new PpmFundingSourceFilterInput
             {
                 Name = new StringFilterInput { Contains = ToFuzzyQuery(code) }
             },
-            ToUpperTrim(code));
+            ToUpperTrim(code),
+            cancellationToken);
         var data = result.ReadData();
 
         var match = data.PpmFundingSourceSearch.Data
@@ -773,7 +821,9 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
             : null;
     }
 
-    private async Task<IPpmAward_PpmAwardByPpmAwardNumber?> GetAwardAsync(string? query)
+    private async Task<IPpmAward_PpmAwardByPpmAwardNumber?> GetAwardAsync(
+        string? query,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -782,9 +832,15 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
 
         try
         {
-            var result = await _apiClient.PpmAward.ExecuteAsync(ToUpperTrim(query));
+            var result = await _apiClient.PpmAward.ExecuteAsync(
+                ToUpperTrim(query),
+                cancellationToken);
             var awards = result.ReadData().PpmAwardByPpmAwardNumber;
             return awards.Count == 0 ? null : awards[0];
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception exception)
         {
