@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Koi.Functions.Authentication;
 using Koi.Functions.Configuration;
+using Koi.Functions.Financial.Configuration;
+using Koi.Functions.Financial.Services;
 using Koi.Functions.Telemetry;
 using Microsoft.Azure.Functions.Worker.Builder;
 using Microsoft.Azure.Functions.Worker.OpenTelemetry;
@@ -41,8 +43,14 @@ builder.Services
     .Validate(ApiKeyOptions.IsValid, "Exactly two unique, valid API key slots with at least one enabled slot must be configured.")
     .ValidateOnStart();
 
+builder.Services
+    .AddOptions<FinancialOptions>()
+    .BindConfiguration(FinancialOptions.SectionName)
+    .Validate(FinancialOptions.IsValid, "Complete, valid Financial API settings must be configured.");
+
 builder.Services.AddSingleton<ApiKeyAuthenticator>();
 builder.Services.AddSingleton<HttpFunctionAuthorizationPolicy>();
 builder.Services.AddSingleton<FunctionInvocationMetrics>();
+builder.Services.AddScoped<IAggieEnterpriseService, AggieEnterpriseService>();
 
 builder.Build().Run();
