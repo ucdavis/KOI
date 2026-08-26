@@ -133,6 +133,12 @@ jobs:
           API_KEY_1_SHA256: ${{ secrets.KOI_API_KEY_1_SHA256 }}
           API_KEY_2_ID: ${{ vars.KOI_API_KEY_2_ID }}
           API_KEY_2_SHA256: ${{ secrets.KOI_API_KEY_2_SHA256 }}
+          FINANCIAL_API_URL: ${{ vars.FINANCIAL_API_URL }}
+          FINANCIAL_CONSUMER_KEY: ${{ secrets.FINANCIAL_CONSUMER_KEY }}
+          FINANCIAL_CONSUMER_SECRET: ${{ secrets.FINANCIAL_CONSUMER_SECRET }}
+          FINANCIAL_TOKEN_ENDPOINT: ${{ vars.FINANCIAL_TOKEN_ENDPOINT }}
+          FINANCIAL_SCOPE_APP: ${{ vars.FINANCIAL_SCOPE_APP }}
+          FINANCIAL_SCOPE_ENV: ${{ vars.FINANCIAL_SCOPE_ENV }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ vars.OTEL_EXPORTER_OTLP_PROTOCOL }}
@@ -143,6 +149,27 @@ jobs:
             echo "GitHub environment API-key hashes are missing or invalid." >&2
             exit 1
           fi
+
+          if [[ ! "$FINANCIAL_API_URL" =~ ^https://[^[:space:]]+$ \
+            || ! "$FINANCIAL_TOKEN_ENDPOINT" =~ ^https://[^[:space:]]+$ \
+            || -z "$FINANCIAL_CONSUMER_KEY" \
+            || -z "$FINANCIAL_CONSUMER_SECRET" \
+            || -z "$FINANCIAL_SCOPE_APP" \
+            || -z "$FINANCIAL_SCOPE_ENV" ]]; then
+            echo "GitHub environment Financial API settings are missing or invalid." >&2
+            exit 1
+          fi
+
+          for financial_value in \
+            "$FINANCIAL_CONSUMER_KEY" \
+            "$FINANCIAL_CONSUMER_SECRET" \
+            "$FINANCIAL_SCOPE_APP" \
+            "$FINANCIAL_SCOPE_ENV"; do
+            if [[ "$financial_value" == *$'\n'* || "$financial_value" == *$'\r'* ]]; then
+              echo "GitHub environment Financial API settings must not contain newlines." >&2
+              exit 1
+            fi
+          done
 
           OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
 
@@ -168,6 +195,12 @@ jobs:
                 apiKey1Sha256: { value: env.API_KEY_1_SHA256 },
                 apiKey2Id: { value: env.API_KEY_2_ID },
                 apiKey2Sha256: { value: env.API_KEY_2_SHA256 },
+                financialApiUrl: { value: env.FINANCIAL_API_URL },
+                financialConsumerKey: { value: env.FINANCIAL_CONSUMER_KEY },
+                financialConsumerSecret: { value: env.FINANCIAL_CONSUMER_SECRET },
+                financialTokenEndpoint: { value: env.FINANCIAL_TOKEN_ENDPOINT },
+                financialScopeApp: { value: env.FINANCIAL_SCOPE_APP },
+                financialScopeEnv: { value: env.FINANCIAL_SCOPE_ENV },
                 otelExporterOtlpEndpoint: { value: env.OTEL_EXPORTER_OTLP_ENDPOINT },
                 otelExporterOtlpHeaders: { value: env.OTEL_EXPORTER_OTLP_HEADERS },
                 otelExporterOtlpProtocol: { value: env.OTEL_EXPORTER_OTLP_PROTOCOL },
