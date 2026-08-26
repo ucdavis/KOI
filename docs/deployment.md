@@ -195,15 +195,28 @@ The automated smoke test waits for the expected Git revision and verifies:
 - `/api/v1/hello` returns `401` for an invalid credential
 - unauthorized responses advertise `WWW-Authenticate: Bearer`
 
-Because GitHub never receives plaintext KOI tokens, verify both active slots
-from the trusted local handoff after deployment:
+Because GitHub never receives plaintext KOI tokens, the automated workflow
+cannot make a successful authenticated request. From the trusted local handoff,
+verify both active slots and the live Aggie Enterprise Financial integration
+after deployment with a known valid test chart string:
 
 ```bash
-./scripts/smoke-authenticated.sh https://<function-app>.azurewebsites.net
+./scripts/smoke-authenticated.sh \
+  https://<function-app>.azurewebsites.net \
+  '<known-valid-test-chart-string>'
 ```
 
-The script prints the UTC start time for those two requests. Use that boundary
-to verify in Elastic that both requests arrived and that neither plaintext token
+The script reads both plaintext tokens only from the gitignored `.env.test`,
+sends authorization headers to KOI through curl standard input, and never
+passes a token on the command line. It requires both token slots to return `200`
+from `/api/v1/hello`, then calls `/api/v1/financial/details/{value}` with the first slot
+and requires `200`, the requested chart string, `isValid: true`, and no errors.
+That final check proves the deployed Function can authenticate to Aggie
+Enterprise and obtain a valid Financial response without placing a plaintext
+KOI bearer token in GitHub.
+
+The script prints the UTC start time for those three requests. Use that boundary
+to verify in Elastic that all requests arrived and that neither plaintext token
 nor a recognizable token prefix or suffix was recorded. The smoke test does not
 claim telemetry success until an Elastic query path is configured and checked.
 
