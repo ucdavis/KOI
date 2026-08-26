@@ -77,7 +77,7 @@ financial_status="$(printf 'Authorization: Bearer %s\n' "$KOI_API_KEY_1" | curl 
   --header @- \
   --output "$financial_body" \
   --write-out '%{http_code}' \
-  "$base_url/api/v1/financial/$encoded_chart_string")"
+  "$base_url/api/v1/financial/details/$encoded_chart_string")"
 
 if [[ "$financial_status" != "200" ]]; then
   echo "Financial integration smoke test failed with status $financial_status." >&2

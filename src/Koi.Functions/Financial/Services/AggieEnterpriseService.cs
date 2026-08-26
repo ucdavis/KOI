@@ -88,6 +88,86 @@ public sealed partial class AggieEnterpriseService : IAggieEnterpriseService
         return aeDetails;
     }
 
+    public async Task<FinancialValidationResult> ValidateAsync(
+        string segmentString,
+        CancellationToken cancellationToken)
+    {
+        var validationResult = new FinancialValidationResult
+        {
+            ChartString = segmentString
+        };
+
+        var chartStringType = string.IsNullOrWhiteSpace(segmentString)
+            ? FinancialChartStringType.Invalid
+            : FinancialChartValidation.GetFinancialChartStringType(segmentString);
+
+        if (chartStringType == FinancialChartStringType.Invalid)
+        {
+            validationResult.ErrorMessage = "Invalid chart string format.";
+            return validationResult;
+        }
+
+        if (chartStringType == FinancialChartStringType.Gl)
+        {
+            var result = await _apiClient.GlValidateChartstring.ExecuteAsync(
+                segmentString,
+                true,
+                cancellationToken);
+            var validation = result.ReadData().GlValidateChartstring;
+
+            SetValidationResult(
+                validationResult,
+                validation.ValidationResponse.Valid,
+                validation.ValidationResponse.ErrorMessages,
+                validation.Warnings?.Select(warning => warning.Warning),
+                "Invalid GL chart string.");
+            return validationResult;
+        }
+
+        var ppmResult = await _apiClient.PpmSegmentStringValidate.ExecuteAsync(
+            segmentString,
+            cancellationToken);
+        var ppmValidation = ppmResult.ReadData().PpmSegmentStringValidate;
+
+        SetValidationResult(
+            validationResult,
+            ppmValidation.ValidationResponse.Valid,
+            ppmValidation.ValidationResponse.ErrorMessages,
+            ppmValidation.Warnings?
+                .Where(warning => warning is not null)
+                .Select(warning => warning!.Warning),
+            "Invalid PPM chart string.");
+        return validationResult;
+    }
+
+    private static void SetValidationResult(
+        FinancialValidationResult result,
+        bool isValid,
+        IReadOnlyList<string>? errors,
+        IEnumerable<string?>? warnings,
+        string defaultError)
+    {
+        result.IsValid = isValid;
+        if (!isValid)
+        {
+            result.ErrorMessage = errors is { Count: > 0 }
+                ? string.Join("; ", errors)
+                : defaultError;
+            return;
+        }
+
+        var warningMessages = warnings?
+            .Where(warning => !string.IsNullOrWhiteSpace(warning))
+            .ToArray();
+        if (warningMessages is not { Length: > 0 })
+        {
+            return;
+        }
+
+        result.IsWarning = true;
+        result.ErrorMessage = string.Join("; ", warningMessages);
+    }
+
     private async Task<AeDetails> GetGlDetailsAsync(
         AeDetails aeDetails,
         string segmentString,

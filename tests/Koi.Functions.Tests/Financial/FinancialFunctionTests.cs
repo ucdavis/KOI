@@ -32,6 +32,24 @@ public sealed class FinancialFunctionTests
     }
 
     [Fact]
+    public async Task RunValidationPassesValueAndCancellationTokenToService()
+    {
+        var service = new TrackingAggieEnterpriseService();
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(string.Empty);
+        using var cancellationTokenSource = new CancellationTokenSource();
+
+        var response = await function.RunValidation(
+            request,
+            "chart",
+            cancellationTokenSource.Token);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(["chart"], service.ValidatedChartStrings);
+        Assert.Equal([cancellationTokenSource.Token], service.ValidationCancellationTokens);
+    }
+
+    [Fact]
     public async Task RunBulkReturnsBadRequestWhenBatchExceedsMaximum()
     {
         var service = new TrackingAggieEnterpriseService();
@@ -82,20 +100,56 @@ public sealed class FinancialFunctionTests
             cancellationToken => Assert.True(cancellationToken.CanBeCanceled));
     }
 
+    [Fact]
+    public async Task RunBulkValidationProcessesInputInOrder()
+    {
+        var service = new TrackingAggieEnterpriseService(delayCalls: true);
+        var function = new FinancialFunction(service);
+        var chartStrings = Enumerable.Range(0, 10)
+            .Select(index => $"chart-{index}")
+            .ToArray();
+        var request = TestHttpRequestData.Create(JsonSerializer.Serialize(chartStrings));
+
+        var response = await function.RunBulkValidation(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        response.Body.Position = 0;
+        var results = await JsonSerializer.DeserializeAsync<FinancialValidationResult[]>(response.Body);
+        Assert.NotNull(results);
+        Assert.Equal(chartStrings, results.Select(result => result.ChartString));
+        Assert.Equal(chartStrings.Length, service.ValidationCallCount);
+        Assert.InRange(service.MaxConcurrentValidationCalls, 2, FinancialFunction.MaxConcurrency);
+    }
+
     private sealed class TrackingAggieEnterpriseService(bool delayCalls = false)
         : IAggieEnterpriseService
     {
         private int _activeCalls;
         private int _callCount;
         private int _maxConcurrentCalls;
+        private int _activeValidationCalls;
+        private int _validationCallCount;
+        private int _maxConcurrentValidationCalls;
         private readonly ConcurrentQueue<CancellationToken> _cancellationTokens = [];
+        private readonly ConcurrentQueue<CancellationToken> _validationCancellationTokens = [];
+        private readonly ConcurrentQueue<string> _validatedChartStrings = [];
         private readonly ConcurrentQueue<string> _completionOrder = [];
 
         public int CallCount => _callCount;
 
         public int MaxConcurrentCalls => _maxConcurrentCalls;
 
+        public int ValidationCallCount => _validationCallCount;
+
+        public int MaxConcurrentValidationCalls => _maxConcurrentValidationCalls;
+
         public CancellationToken[] CancellationTokens => _cancellationTokens.ToArray();
+
+        public CancellationToken[] ValidationCancellationTokens =>
+            _validationCancellationTokens.ToArray();
+
+        public string[] ValidatedChartStrings => _validatedChartStrings.ToArray();
 
         public string[] CompletionOrder => _completionOrder.ToArray();
 
@@ -129,13 +183,48 @@ public sealed class FinancialFunctionTests
             }
         }
 
+        public async Task<FinancialValidationResult> ValidateAsync(
+            string segmentString,
+            CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _validationCallCount);
+            _validationCancellationTokens.Enqueue(cancellationToken);
+            _validatedChartStrings.Enqueue(segmentString);
+            var activeCalls = Interlocked.Increment(ref _activeValidationCalls);
+            UpdateMaximum(ref _maxConcurrentValidationCalls, activeCalls);
+
+            try
+            {
+                if (delayCalls)
+                {
+                    var index = int.Parse(
+                        segmentString.AsSpan("chart-".Length),
+                        CultureInfo.InvariantCulture);
+                    var delayMultiplier = FinancialFunction.MaxConcurrency -
+                        (index % FinancialFunction.MaxConcurrency);
+                    await Task.Delay(delayMultiplier * 5, cancellationToken);
+                }
+
+                return new FinancialValidationResult { ChartString = segmentString };
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeValidationCalls);
+            }
+        }
+
         private void UpdateMaxConcurrentCalls(int activeCalls)
         {
-            var currentMaximum = _maxConcurrentCalls;
+            UpdateMaximum(ref _maxConcurrentCalls, activeCalls);
+        }
+
+        private static void UpdateMaximum(ref int maximum, int activeCalls)
+        {
+            var currentMaximum = maximum;
             while (activeCalls > currentMaximum)
             {
                 var observedMaximum = Interlocked.CompareExchange(
-                    ref _maxConcurrentCalls,
+                    ref maximum,
                     activeCalls,
                     currentMaximum);
                 if (observedMaximum == currentMaximum)
@@ -165,7 +254,7 @@ public sealed class FinancialFunctionTests
 
         public override IReadOnlyCollection<IHttpCookie> Cookies { get; } = [];
 
-        public override Uri Url { get; } = new("https://example.test/api/v1/financial");
+        public override Uri Url { get; } = new("https://example.test/api/v1/financial/details");
 
         public override IEnumerable<ClaimsIdentity> Identities { get; } = [];
 

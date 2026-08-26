@@ -22,10 +22,12 @@ public sealed class FinancialFunction
 
     public const string FunctionName = "Financial";
     public const string BulkFunctionName = "FinancialBulk";
+    public const string ValidationFunctionName = "FinancialValidation";
+    public const string BulkValidationFunctionName = "FinancialValidationBulk";
 
     [Function(FunctionName)]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/{value}")] HttpRequestData request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/details/{value}")] HttpRequestData request,
         string value,
         CancellationToken cancellationToken)
     {
@@ -38,7 +40,7 @@ public sealed class FinancialFunction
 
     [Function(BulkFunctionName)]
     public async Task<HttpResponseData> RunBulk(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial")] HttpRequestData request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial/details")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
         string[]? chartStrings;
@@ -74,6 +76,57 @@ public sealed class FinancialFunction
         return response;
     }
 
+    [Function(ValidationFunctionName)]
+    public async Task<HttpResponseData> RunValidation(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/validate/{value}")] HttpRequestData request,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        var result = await _aggieEnterpriseService.ValidateAsync(value, cancellationToken);
+        var response = request.CreateResponse();
+        response.StatusCode = HttpStatusCode.OK;
+        await response.WriteAsJsonAsync(result, cancellationToken);
+        return response;
+    }
+
+    [Function(BulkValidationFunctionName)]
+    public async Task<HttpResponseData> RunBulkValidation(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial/validate")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        string[]? chartStrings;
+        try
+        {
+            chartStrings = await JsonSerializer.DeserializeAsync<string[]>(
+                request.Body,
+                cancellationToken: cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return await CreateInvalidBodyResponseAsync(request, cancellationToken);
+        }
+
+        if (chartStrings is null)
+        {
+            return await CreateInvalidBodyResponseAsync(request, cancellationToken);
+        }
+
+        if (chartStrings.Length > MaxBatchSize)
+        {
+            return await CreateBadRequestResponseAsync(
+                request,
+                $"request body must contain no more than {MaxBatchSize} chart strings",
+                cancellationToken);
+        }
+
+        var validationResults = await ValidateAsync(chartStrings, cancellationToken);
+
+        var response = request.CreateResponse();
+        response.StatusCode = HttpStatusCode.OK;
+        await response.WriteAsJsonAsync(validationResults, cancellationToken);
+        return response;
+    }
+
     private static async Task<HttpResponseData> CreateInvalidBodyResponseAsync(
         HttpRequestData request,
         CancellationToken cancellationToken)
@@ -100,6 +153,29 @@ public sealed class FinancialFunction
             async (index, iterationCancellationToken) =>
             {
                 results[index] = await _aggieEnterpriseService.GetAeDetailsAsync(
+                    chartStrings[index],
+                    iterationCancellationToken);
+            });
+
+        return results;
+    }
+
+    private async Task<FinancialValidationResult[]> ValidateAsync(
+        string[] chartStrings,
+        CancellationToken cancellationToken)
+    {
+        var results = new FinancialValidationResult[chartStrings.Length];
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, chartStrings.Length),
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = MaxConcurrency
+            },
+            async (index, iterationCancellationToken) =>
+            {
+                results[index] = await _aggieEnterpriseService.ValidateAsync(
                     chartStrings[index],
                     iterationCancellationToken);
             });

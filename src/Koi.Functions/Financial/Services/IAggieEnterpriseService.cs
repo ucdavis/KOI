@@ -7,4 +7,8 @@ public interface IAggieEnterpriseService
     Task<AeDetails> GetAeDetailsAsync(
         string segmentString,
         CancellationToken cancellationToken);
+
+    Task<FinancialValidationResult> ValidateAsync(
+        string segmentString,
+        CancellationToken cancellationToken);
 }
