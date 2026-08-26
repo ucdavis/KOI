@@ -1,3 +1,4 @@
+using Koi.Functions.Financial;
 using Koi.Functions.Health;
 using Koi.Functions.Hello;
 
@@ -26,5 +27,13 @@ public sealed class ResponseContractTests
         var response = new HelloResponse("Hello from KOI");
 
         Assert.Equal("Hello from KOI", response.Message);
+    }
+
+    [Fact]
+    public void FinancialContractIncludesPassedValue()
+    {
+        var response = new FinancialResponse("You passed: example");
+
+        Assert.Equal("You passed: example", response.Message);
     }
 }
