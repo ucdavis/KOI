@@ -28,6 +28,12 @@ public sealed class HttpFunctionAuthorizationPolicyTests
     }
 
     [Fact]
+    public void FinancialBulkIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.BulkFunctionName));
+    }
+
+    [Fact]
     public void UnknownFutureFunctionIsAuthenticatedByDefault()
     {
         Assert.False(_policy.IsAnonymous("FutureFunction"));
