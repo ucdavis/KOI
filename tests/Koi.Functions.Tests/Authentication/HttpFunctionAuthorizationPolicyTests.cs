@@ -1,4 +1,5 @@
 using Koi.Functions.Authentication;
+using Koi.Functions.Financial;
 using Koi.Functions.Health;
 using Koi.Functions.Hello;
 
@@ -18,6 +19,30 @@ public sealed class HttpFunctionAuthorizationPolicyTests
     public void HelloIsAuthenticatedByDefault()
     {
         Assert.False(_policy.IsAnonymous(HelloFunction.FunctionName));
+    }
+
+    [Fact]
+    public void FinancialIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.FunctionName));
+    }
+
+    [Fact]
+    public void FinancialBulkIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.BulkFunctionName));
+    }
+
+    [Fact]
+    public void FinancialValidationIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.ValidationFunctionName));
+    }
+
+    [Fact]
+    public void FinancialValidationBulkIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.BulkValidationFunctionName));
     }
 
     [Fact]

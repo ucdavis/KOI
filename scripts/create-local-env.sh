@@ -30,3 +30,4 @@ secondary_hash="$(printf '%s' "$secondary_token" | openssl dgst -sha256 -r | awk
 
 unset primary_token secondary_token primary_hash secondary_hash
 echo "Created $env_file with two independent 256-bit local tokens and matching hashes."
+echo "Add the six Financial__* settings from .env.example before starting KOI."
