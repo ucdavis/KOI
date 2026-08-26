@@ -1,4 +1,5 @@
-using Koi.Functions.Financial;
+using AggieEnterpriseApi.Validation;
+using Koi.Functions.Financial.Models;
 using Koi.Functions.Health;
 using Koi.Functions.Hello;
 
@@ -30,10 +31,19 @@ public sealed class ResponseContractTests
     }
 
     [Fact]
-    public void FinancialContractIncludesPassedValue()
+    public void FinancialDetailsContractIsStable()
     {
-        var response = new FinancialResponse("You passed: example");
+        var response = new AeDetails
+        {
+            IsValid = true,
+            ChartType = "GL",
+            ChartString = "example",
+            ChartStringType = FinancialChartStringType.Gl
+        };
 
-        Assert.Equal("You passed: example", response.Message);
+        Assert.True(response.IsValid);
+        Assert.Equal("GL", response.ChartType);
+        Assert.Equal("example", response.ChartString);
+        Assert.Equal(FinancialChartStringType.Gl, response.ChartStringType);
     }
 }
