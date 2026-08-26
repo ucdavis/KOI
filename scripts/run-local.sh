@@ -23,6 +23,12 @@ required_variables=(
   ApiKeys__Credentials__1__Enabled
   KOI_API_KEY_1
   KOI_API_KEY_2
+  Financial__ApiUrl
+  Financial__ConsumerKey
+  Financial__ConsumerSecret
+  Financial__TokenEndpoint
+  Financial__ScopeApp
+  Financial__ScopeEnv
 )
 
 for variable in "${required_variables[@]}"; do
