@@ -11,6 +11,8 @@ Build, including financial chart details from Aggie Enterprise.
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
 | `GET` | `/api/v1/financial/{value}` | Bearer token | Financial details for one chart string |
 | `POST` | `/api/v1/financial` | Bearer token | Financial details for an array of chart strings |
+| `GET` | `/api/v1/financial/validate/{value}` | Bearer token | Validation result for one chart string |
+| `POST` | `/api/v1/financial/validate` | Bearer token | Validation results for an array of chart strings |
 
 All HTTP functions require authentication by default. The health function is
 the only explicit anonymous exception.

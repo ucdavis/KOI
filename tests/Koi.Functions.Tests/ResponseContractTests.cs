@@ -46,4 +46,21 @@ public sealed class ResponseContractTests
         Assert.Equal("example", response.ChartString);
         Assert.Equal(FinancialChartStringType.Gl, response.ChartStringType);
     }
+
+    [Fact]
+    public void FinancialValidationContractIsStable()
+    {
+        var response = new FinancialValidationResult
+        {
+            ChartString = "example",
+            IsValid = true,
+            IsWarning = true,
+            ErrorMessage = "example warning"
+        };
+
+        Assert.Equal("example", response.ChartString);
+        Assert.True(response.IsValid);
+        Assert.True(response.IsWarning);
+        Assert.Equal("example warning", response.ErrorMessage);
+    }
 }
