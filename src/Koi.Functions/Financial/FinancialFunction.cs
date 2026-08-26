@@ -27,7 +27,7 @@ public sealed class FinancialFunction
 
     [Function(FunctionName)]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/{value}")] HttpRequestData request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/details/{value}")] HttpRequestData request,
         string value,
         CancellationToken cancellationToken)
     {
@@ -40,7 +40,7 @@ public sealed class FinancialFunction
 
     [Function(BulkFunctionName)]
     public async Task<HttpResponseData> RunBulk(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial")] HttpRequestData request,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial/details")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
         string[]? chartStrings;

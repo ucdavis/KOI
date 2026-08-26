@@ -254,7 +254,7 @@ public sealed class FinancialFunctionTests
 
         public override IReadOnlyCollection<IHttpCookie> Cookies { get; } = [];
 
-        public override Uri Url { get; } = new("https://example.test/api/v1/financial");
+        public override Uri Url { get; } = new("https://example.test/api/v1/financial/details");
 
         public override IEnumerable<ClaimsIdentity> Identities { get; } = [];
 

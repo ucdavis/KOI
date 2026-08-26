@@ -9,8 +9,8 @@ Build, including financial chart details from Aggie Enterprise.
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.1","revision":"<git-sha-or-local>"}` |
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
-| `GET` | `/api/v1/financial/{value}` | Bearer token | Financial details for one chart string |
-| `POST` | `/api/v1/financial` | Bearer token | Financial details for an array of chart strings |
+| `GET` | `/api/v1/financial/details/{value}` | Bearer token | Financial details for one chart string |
+| `POST` | `/api/v1/financial/details` | Bearer token | Financial details for an array of chart strings |
 | `GET` | `/api/v1/financial/validate/{value}` | Bearer token | Validation result for one chart string |
 | `POST` | `/api/v1/financial/validate` | Bearer token | Validation results for an array of chart strings |
 

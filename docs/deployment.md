@@ -209,7 +209,7 @@ after deployment with a known valid test chart string:
 The script reads both plaintext tokens only from the gitignored `.env.test`,
 sends authorization headers to KOI through curl standard input, and never
 passes a token on the command line. It requires both token slots to return `200`
-from `/api/v1/hello`, then calls `/api/v1/financial/{value}` with the first slot
+from `/api/v1/hello`, then calls `/api/v1/financial/details/{value}` with the first slot
 and requires `200`, the requested chart string, `isValid: true`, and no errors.
 That final check proves the deployed Function can authenticate to Aggie
 Enterprise and obtain a valid Financial response without placing a plaintext
