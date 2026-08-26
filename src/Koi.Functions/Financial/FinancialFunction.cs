@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Koi.Functions.Financial.Models;
 using Koi.Functions.Financial.Services;
 using Koi.Functions.Http;
 using Microsoft.Azure.Functions.Worker;
@@ -9,6 +10,9 @@ namespace Koi.Functions.Financial;
 
 public sealed class FinancialFunction
 {
+    internal const int MaxBatchSize = 50;
+    internal const int MaxConcurrency = 5;
+
     private readonly IAggieEnterpriseService _aggieEnterpriseService;
 
     public FinancialFunction(IAggieEnterpriseService aggieEnterpriseService)
@@ -54,8 +58,15 @@ public sealed class FinancialFunction
             return await CreateInvalidBodyResponseAsync(request, cancellationToken);
         }
 
-        var aeDetails = await Task.WhenAll(
-            chartStrings.Select(_aggieEnterpriseService.GetAeDetailsAsync));
+        if (chartStrings.Length > MaxBatchSize)
+        {
+            return await CreateBadRequestResponseAsync(
+                request,
+                $"request body must contain no more than {MaxBatchSize} chart strings",
+                cancellationToken);
+        }
+
+        var aeDetails = await GetAeDetailsAsync(chartStrings, cancellationToken);
 
         var response = request.CreateResponse();
         response.StatusCode = HttpStatusCode.OK;
@@ -67,10 +78,42 @@ public sealed class FinancialFunction
         HttpRequestData request,
         CancellationToken cancellationToken)
     {
+        return await CreateBadRequestResponseAsync(
+            request,
+            "request body must be a JSON array of chart strings",
+            cancellationToken);
+    }
+
+    private async Task<AeDetails[]> GetAeDetailsAsync(
+        string[] chartStrings,
+        CancellationToken cancellationToken)
+    {
+        var results = new AeDetails[chartStrings.Length];
+
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, chartStrings.Length),
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = MaxConcurrency
+            },
+            async (index, _) =>
+            {
+                results[index] = await _aggieEnterpriseService.GetAeDetailsAsync(chartStrings[index]);
+            });
+
+        return results;
+    }
+
+    private static async Task<HttpResponseData> CreateBadRequestResponseAsync(
+        HttpRequestData request,
+        string error,
+        CancellationToken cancellationToken)
+    {
         var response = request.CreateResponse();
         response.StatusCode = HttpStatusCode.BadRequest;
         await response.WriteAsJsonAsync(
-            new ErrorResponse("request body must be a JSON array of chart strings"),
+            new ErrorResponse(error),
             cancellationToken);
         return response;
     }
