@@ -24,3 +24,4 @@ key_2="$(openssl rand -hex 32)"
 unset key_1 key_2
 chmod 600 "$destination"
 echo "Created $destination with mode 600. Move both plaintext tokens to the approved password manager."
+echo "Add the six Financial__* settings before configuring the GitHub test environment."

@@ -1,17 +1,16 @@
 # KOI
 
-Kuali Operational Integrations provides narrow API endpoints that enrich Kuali Build.
-
-This initial .NET 10 Azure Functions foundation intentionally has no database or
-downstream integrations. It proves host health and Function-side API-key
-authentication.
+Kuali Operational Integrations provides narrow API endpoints that enrich Kuali
+Build, including financial chart details from Aggie Enterprise.
 
 ## Endpoints
 
 | Method | Route | Authentication | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.0","revision":"<git-sha-or-local>"}` |
+| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.1","revision":"<git-sha-or-local>"}` |
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
+| `GET` | `/api/v1/financial/{value}` | Bearer token | Financial details for one chart string |
+| `POST` | `/api/v1/financial` | Bearer token | Financial details for an array of chart strings |
 
 All HTTP functions require authentication by default. The health function is
 the only explicit anonymous exception.
@@ -51,7 +50,8 @@ Create two fresh local credentials if `.env` does not already exist:
 ```
 
 The generated file is mode `600` and contains Azure-shaped credential IDs and
-hashes plus the matching plaintext local client tokens. Start the Function host:
+hashes plus the matching plaintext local client tokens. Add the six
+`Financial__*` settings shown in `.env.example`, then start the Function host:
 
 ```bash
 ./scripts/run-local.sh
@@ -95,8 +95,9 @@ Log Analytics are not provisioned.
 
 The one-time bootstrap creates the Bicep-managed resource group and deployment
 managed identity, the environment-scoped GitHub OIDC trust, and the GitHub
-`test` environment. It does not create an Azure client secret, and GitHub
-receives only API-key IDs and SHA-256 hashes, never plaintext tokens.
+`test` environment. It does not create an Azure client secret. GitHub receives
+only KOI API-key IDs and SHA-256 hashes, never plaintext KOI bearer tokens;
+Aggie Enterprise credentials are stored as GitHub environment secrets.
 
 See [Azure deployment](docs/deployment.md) for the resource boundary,
 bootstrap procedure, deployment flow, verification, and rollback.

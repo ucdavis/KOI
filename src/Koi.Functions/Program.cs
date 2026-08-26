@@ -46,7 +46,8 @@ builder.Services
 builder.Services
     .AddOptions<FinancialOptions>()
     .BindConfiguration(FinancialOptions.SectionName)
-    .Validate(FinancialOptions.IsValid, "Complete, valid Financial API settings must be configured.");
+    .Validate(FinancialOptions.IsValid, "Complete, valid Financial API settings must be configured.")
+    .ValidateOnStart();
 
 builder.Services.AddSingleton<ApiKeyAuthenticator>();
 builder.Services.AddSingleton<HttpFunctionAuthorizationPolicy>();

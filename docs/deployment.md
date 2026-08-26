@@ -28,6 +28,8 @@ identity. `infra/main.bicep` creates all workload resources inside it:
 - private deployment container in a dedicated Storage account
 - direct OpenTelemetry export to the central Elastic collector
 - Function application settings containing API-key IDs and SHA-256 hashes
+- Function application settings containing Aggie Enterprise endpoints, scopes,
+  and OAuth credentials
 
 Resource names use a stable `uniqueString` suffix derived from the subscription,
 resource group, and environment. Bicep outputs the Function name, URL, managed
@@ -87,6 +89,37 @@ It performs these bounded operations:
 The Azure identity, federated credential, role assignment, resource group, and
 workload resources are Bicep-managed. The bootstrap script uses `gh` only for
 the GitHub environment, variables, branch policy, and hashed API-key secrets.
+
+## Aggie Enterprise Financial configuration
+
+The Financial endpoints require six Aggie Enterprise settings. Add the real
+values to the gitignored, mode-`600` `.env.test` handoff file:
+
+```dotenv
+Financial__ApiUrl='https://replace-with-graphql-endpoint'
+Financial__ConsumerKey='replace-with-consumer-key'
+Financial__ConsumerSecret='replace-with-consumer-secret'
+Financial__TokenEndpoint='https://replace-with-token-endpoint'
+Financial__ScopeApp='KOI'
+Financial__ScopeEnv='Test'
+```
+
+Synchronize those values into the GitHub `test` environment:
+
+```bash
+bash ./scripts/configure-test-financial.sh
+```
+
+The API URL, token endpoint, application scope, and environment scope are
+stored as GitHub environment variables. The consumer key and consumer secret
+are stored as GitHub environment secrets. The deployment workflow passes both
+credentials as secure Bicep parameters and writes all six values to the
+Function application settings under their `Financial__*` names. The Function
+validates the complete Financial configuration during startup.
+
+Do not deploy until all six GitHub values are present. Neither credential is
+written to source control, workflow output, deployment output, or
+documentation.
 
 ## Elastic OpenTelemetry configuration
 
@@ -149,7 +182,9 @@ The workflows use pinned action commit SHAs and minimal job permissions.
   ZIP, and runs public smoke tests.
 
 The deployment workflow receives `id-token: write` only in the environment job.
-No Azure client secret or plaintext KOI bearer token is stored in GitHub.
+No Azure client secret or plaintext KOI bearer token is stored in GitHub. The
+Aggie Enterprise consumer key and consumer secret are stored only as GitHub
+environment secrets and encrypted Function application settings.
 
 ## Verification
 
@@ -203,9 +238,11 @@ Elastic telemetry configuration. Before adding it:
    OIDC subject.
 4. Generate production API keys into an approved password manager, then store
    only their IDs and SHA-256 hashes in GitHub.
-5. Configure the production Elastic endpoint, protocol, and authentication
+5. Configure the production Aggie Enterprise endpoints, scopes, consumer key,
+   and consumer secret in the protected GitHub environment.
+6. Configure the production Elastic endpoint, protocol, and authentication
    header, then add a production deploy job protected by the GitHub environment.
-6. Validate Bicep what-if, deploy, run public and authenticated smoke tests, and
+7. Validate Bicep what-if, deploy, run public and authenticated smoke tests, and
    prove ingestion and token redaction in Elastic.
 
 The current workflow intentionally deploys only `test`; production remains
