@@ -46,7 +46,7 @@ health_status="$(request "$health_file" "$base_url/api/health")"
 assert_response \
   "Anonymous health" \
   200 \
-  '{"status":"healthy","service":"KOI","version":"0.1.0","revision":"local"}' \
+  '{"status":"healthy","service":"KOI","version":"0.1.1","revision":"local"}' \
   "$health_status" \
   "$health_file"
 

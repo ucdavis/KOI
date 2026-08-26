@@ -30,6 +30,32 @@ param apiKey2Id string
 @maxLength(64)
 param apiKey2Sha256 string
 
+@description('Aggie Enterprise GraphQL API URL.')
+@minLength(8)
+param financialApiUrl string
+
+@description('Aggie Enterprise OAuth consumer key.')
+@secure()
+@minLength(1)
+param financialConsumerKey string
+
+@description('Aggie Enterprise OAuth consumer secret.')
+@secure()
+@minLength(1)
+param financialConsumerSecret string
+
+@description('Aggie Enterprise OAuth token endpoint.')
+@minLength(8)
+param financialTokenEndpoint string
+
+@description('Aggie Enterprise application scope name.')
+@minLength(1)
+param financialScopeApp string
+
+@description('Aggie Enterprise environment scope name.')
+@minLength(1)
+param financialScopeEnv string
+
 @description('HTTPS endpoint for the central OTLP collector.')
 @minLength(8)
 param otelExporterOtlpEndpoint string
@@ -191,6 +217,12 @@ resource appSettings 'Microsoft.Web/sites/config@2024-04-01' = {
     ApiKeys__Credentials__1__Enabled: 'true'
     ApiKeys__Credentials__1__Id: apiKey2Id
     ApiKeys__Credentials__1__Sha256: apiKey2Sha256
+    Financial__ApiUrl: financialApiUrl
+    Financial__ConsumerKey: financialConsumerKey
+    Financial__ConsumerSecret: financialConsumerSecret
+    Financial__ScopeApp: financialScopeApp
+    Financial__ScopeEnv: financialScopeEnv
+    Financial__TokenEndpoint: financialTokenEndpoint
   }
 }
 

@@ -1,5 +1,6 @@
 using Koi.Functions.Authentication;
 using Koi.Functions.Configuration;
+using Koi.Functions.Financial.Configuration;
 using Microsoft.Extensions.Configuration;
 
 namespace Koi.Functions.Tests.Configuration;
@@ -7,7 +8,7 @@ namespace Koi.Functions.Tests.Configuration;
 public sealed class LocalDevelopmentConfigurationTests
 {
     [Fact]
-    public void LoadsAzureShapedCredentialsAndClientTokensFromEnvFile()
+    public void LoadsAzureShapedApplicationSettingsAndClientTokensFromEnvFile()
     {
         var envFile = Path.GetTempFileName();
 
@@ -23,6 +24,12 @@ public sealed class LocalDevelopmentConfigurationTests
                 ApiKeys__Credentials__1__Sha256=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
                 ApiKeys__Credentials__1__Enabled=true
                 KOI_API_KEY_1=local-client-token
+                Financial__ApiUrl=https://financial.example.test/graphql
+                Financial__ConsumerKey=consumer-key
+                Financial__ConsumerSecret=consumer-secret
+                Financial__TokenEndpoint=https://identity.example.test/oauth2/token
+                Financial__ScopeApp=KOI
+                Financial__ScopeEnv=Test
                 """);
 
             var configuration = new ConfigurationManager();
@@ -49,6 +56,18 @@ public sealed class LocalDevelopmentConfigurationTests
                     Assert.True(credential.Enabled);
                 });
             Assert.Equal("local-client-token", configuration["KOI_API_KEY_1"]);
+
+            var financialOptions = configuration
+                .GetSection(FinancialOptions.SectionName)
+                .Get<FinancialOptions>();
+
+            Assert.NotNull(financialOptions);
+            Assert.Equal("https://financial.example.test/graphql", financialOptions.ApiUrl);
+            Assert.Equal("consumer-key", financialOptions.ConsumerKey);
+            Assert.Equal("consumer-secret", financialOptions.ConsumerSecret);
+            Assert.Equal("https://identity.example.test/oauth2/token", financialOptions.TokenEndpoint);
+            Assert.Equal("KOI", financialOptions.ScopeApp);
+            Assert.Equal("Test", financialOptions.ScopeEnv);
         }
         finally
         {
