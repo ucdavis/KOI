@@ -1,14 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$#" -ne 1 ]]; then
-  echo "Usage: $0 <base-url>" >&2
+if [[ "$#" -ne 2 ]]; then
+  echo "Usage: $0 <base-url> <financial-chart-string>" >&2
   exit 1
 fi
+
+for required_command in curl jq; do
+  if ! command -v "$required_command" >/dev/null 2>&1; then
+    echo "Missing required command: $required_command" >&2
+    exit 1
+  fi
+done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 credential_file="$repo_root/.env.test"
 base_url="${1%/}"
+financial_chart_string="$2"
+
+if [[ -z "$financial_chart_string" \
+  || "$financial_chart_string" == *$'\n'* \
+  || "$financial_chart_string" == *$'\r'* ]]; then
+  echo "Financial chart string must be nonempty and contain no newlines." >&2
+  exit 1
+fi
 
 if [[ ! -f "$credential_file" ]]; then
   echo "Missing $credential_file." >&2
@@ -46,8 +61,42 @@ for key_variable in KOI_API_KEY_1 KOI_API_KEY_2; do
   echo "$key_variable: $status"
 done
 
+financial_body="$(mktemp)"
+trap 'rm -f "$financial_body"' EXIT
+encoded_chart_string="$(jq \
+  --null-input \
+  --raw-output \
+  --arg value "$financial_chart_string" \
+  '$value | @uri')"
+
+financial_status="$(printf 'Authorization: Bearer %s\n' "$KOI_API_KEY_1" | curl \
+  --silent \
+  --show-error \
+  --connect-timeout 10 \
+  --max-time 60 \
+  --header @- \
+  --output "$financial_body" \
+  --write-out '%{http_code}' \
+  "$base_url/api/v1/financial/$encoded_chart_string")"
+
+if [[ "$financial_status" != "200" ]]; then
+  echo "Financial integration smoke test failed with status $financial_status." >&2
+  exit 1
+fi
+
+if ! jq --exit-status \
+  --arg chart_string "$financial_chart_string" \
+  '.chartString == $chart_string and .isValid == true and (.errors | length == 0)' \
+  "$financial_body" >/dev/null; then
+  echo "Financial integration returned 200 without a valid Aggie Enterprise response." >&2
+  jq '{chartString, chartStringType, isValid, error, warning}' "$financial_body" >&2
+  exit 1
+fi
+
+echo "Financial integration: $financial_status with a valid Aggie Enterprise response"
+
 echo "Authenticated requests sent at or after $telemetry_start."
 echo "Verify ingestion and token redaction in Elastic before considering telemetry proven."
 
-unset token
+unset token encoded_chart_string financial_chart_string
 unset KOI_API_KEY_1 KOI_API_KEY_2
