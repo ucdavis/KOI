@@ -18,7 +18,7 @@ public sealed class ResponseContractTests
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
-        Assert.Equal("0.1.0", response.Version);
+        Assert.Equal("0.1.1", response.Version);
         Assert.NotEmpty(response.Revision);
     }
 
