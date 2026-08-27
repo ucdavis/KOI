@@ -1,9 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config_file="$repo_root/infra/environments/test.env"
-credential_file="$repo_root/.env.test"
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: $0 <environment>" >&2
+  exit 1
+fi
+
+readonly requested_environment="$1"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/deployment-environment.sh
+source "$script_dir/deployment-environment.sh"
+load_deployment_environment "$requested_environment"
 
 required_commands=(az gh jq openssl)
 for command_name in "${required_commands[@]}"; do
@@ -13,35 +21,27 @@ for command_name in "${required_commands[@]}"; do
   fi
 done
 
-if [[ ! -f "$credential_file" ]]; then
-  echo "Missing $credential_file. Run ./scripts/create-test-credentials.sh first." >&2
+if [[ ! -f "$deployment_credential_file" ]]; then
+  echo "Missing $deployment_credential_file. Run ./scripts/create-environment-credentials.sh $deployment_environment first." >&2
   exit 1
 fi
 
+chmod 600 "$deployment_credential_file"
 # shellcheck disable=SC1090
-source "$config_file"
-# shellcheck disable=SC1090
-source "$credential_file"
-chmod 600 "$credential_file"
+source "$deployment_credential_file"
+# Reload the tracked boundary in case the local handoff contains a conflicting key.
+load_deployment_environment "$requested_environment"
 
-required_variables=(
-  AZURE_SUBSCRIPTION_ID
-  AZURE_TENANT_ID
-  AZURE_LOCATION
-  AZURE_RESOURCE_GROUP
-  AZURE_ENVIRONMENT_NAME
-  GITHUB_OWNER
-  GITHUB_REPOSITORY
-  GITHUB_ENVIRONMENT
+required_credential_variables=(
   KOI_API_KEY_1_ID
   KOI_API_KEY_1
   KOI_API_KEY_2_ID
   KOI_API_KEY_2
 )
 
-for variable in "${required_variables[@]}"; do
-  if [[ -z "${!variable:-}" ]]; then
-    echo "Missing required variable: $variable" >&2
+for variable_name in "${required_credential_variables[@]}"; do
+  if [[ -z "${!variable_name:-}" ]]; then
+    echo "Missing required variable in $deployment_credential_file: $variable_name" >&2
     exit 1
   fi
 done
@@ -64,8 +64,42 @@ oidc_configuration="$(gh api "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/actions/oid
 subject_prefix="$(jq -r '.sub_claim_prefix' <<<"$oidc_configuration")"
 federated_subject="${subject_prefix}:environment:${GITHUB_ENVIRONMENT}"
 repository_name_lower="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
-deployment_identity_name="id-${repository_name_lower}-${GITHUB_ENVIRONMENT}-deploy"
+deployment_identity_name="id-${repository_name_lower}-${AZURE_ENVIRONMENT_NAME}-deploy"
 federated_credential_name="github-${repository_id}-${GITHUB_ENVIRONMENT}"
+
+required_reviewers='[]'
+reviewer_team_count=0
+if [[ -n "$GITHUB_REQUIRED_REVIEWER_TEAMS" ]]; then
+  IFS=',' read -r -a reviewer_teams <<<"$GITHUB_REQUIRED_REVIEWER_TEAMS"
+  for reviewer_team in "${reviewer_teams[@]}"; do
+    if [[ ! "$reviewer_team" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+      echo "Invalid GitHub reviewer team slug: $reviewer_team" >&2
+      exit 1
+    fi
+
+    reviewer_team_id="$(gh api "orgs/$GITHUB_OWNER/teams/$reviewer_team" --jq '.id')"
+    if [[ -z "$reviewer_team_id" || "$reviewer_team_id" == "null" ]]; then
+      echo "Could not resolve GitHub reviewer team: $reviewer_team" >&2
+      exit 1
+    fi
+
+    required_reviewers="$(jq \
+      --argjson reviewer_id "$reviewer_team_id" \
+      '. + [{type: "Team", id: $reviewer_id}]' \
+      <<<"$required_reviewers")"
+    reviewer_team_count=$((reviewer_team_count + 1))
+  done
+fi
+
+if [[ "$GITHUB_REQUIRE_REVIEW" == "true" && "$reviewer_team_count" -eq 0 ]]; then
+  echo "The $GITHUB_ENVIRONMENT environment requires at least one reviewer team." >&2
+  exit 1
+fi
+
+if [[ "$reviewer_team_count" -gt 6 ]]; then
+  echo "GitHub environments support at most six required reviewer users or teams." >&2
+  exit 1
+fi
 
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 selected_subscription="$(az account show --query id --output tsv)"
@@ -79,7 +113,7 @@ echo "Creating or synchronizing $AZURE_RESOURCE_GROUP with Bicep"
 bootstrap_outputs="$(az deployment sub create \
   --name "koi-${AZURE_ENVIRONMENT_NAME}-bootstrap" \
   --location "$AZURE_LOCATION" \
-  --template-file "$repo_root/infra/bootstrap.bicep" \
+  --template-file "$deployment_repo_root/infra/bootstrap.bicep" \
   --parameters \
     deploymentIdentityName="$deployment_identity_name" \
     environmentName="$AZURE_ENVIRONMENT_NAME" \
@@ -100,7 +134,18 @@ if [[ -z "$application_id" || "$application_id" == "null" \
   exit 1
 fi
 
-jq -n '{wait_timer:0,deployment_branch_policy:{protected_branches:false,custom_branch_policies:true}}' \
+jq -n \
+  --argjson prevent_self_review "$GITHUB_PREVENT_SELF_REVIEW" \
+  --argjson reviewers "$required_reviewers" \
+  '{
+    wait_timer: 0,
+    prevent_self_review: $prevent_self_review,
+    reviewers: $reviewers,
+    deployment_branch_policy: {
+      protected_branches: false,
+      custom_branch_policies: true
+    }
+  }' \
   | gh api \
       --method PUT \
       "repos/$GITHUB_OWNER/$GITHUB_REPOSITORY/environments/$GITHUB_ENVIRONMENT" \
@@ -163,3 +208,7 @@ echo "Deployment managed identity: $deployment_identity_name ($application_id)"
 echo "Federated subject: $federated_subject"
 echo "Azure scope: $resource_group_scope"
 echo "GitHub environment: $GITHUB_OWNER/$GITHUB_REPOSITORY / $GITHUB_ENVIRONMENT"
+if [[ "$GITHUB_REQUIRE_REVIEW" == "true" ]]; then
+  echo "Required reviewer teams: $GITHUB_REQUIRED_REVIEWER_TEAMS"
+  echo "Self-review prevented: $GITHUB_PREVENT_SELF_REVIEW"
+fi

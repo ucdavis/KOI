@@ -88,18 +88,20 @@ dotnet test
 
 ## Azure deployment
 
-KOI test infrastructure is declared in Bicep and deployed from GitHub Actions.
-The pipeline builds and tests once, compiles the Bicep, uploads an immutable
-artifact, synchronizes Azure infrastructure, deploys that exact Function
-package, and verifies the public contract. The Function exports telemetry
-directly to the central Elastic collector over OTLP; Application Insights and
-Log Analytics are not provisioned.
+KOI test and production infrastructure is declared in Bicep and deployed from
+GitHub Actions. The pipeline builds and tests once, deploys the immutable
+artifact to test, verifies it, and then waits for production approval. After a
+required reviewer approves the protected `production` environment, the same
+artifact is deployed and verified there. The Function exports telemetry directly
+to the central Elastic collector over OTLP; Application Insights and Log
+Analytics are not provisioned.
 
 The one-time bootstrap creates the Bicep-managed resource group and deployment
-managed identity, the environment-scoped GitHub OIDC trust, and the GitHub
-`test` environment. It does not create an Azure client secret. GitHub receives
-only KOI API-key IDs and SHA-256 hashes, never plaintext KOI bearer tokens;
-Aggie Enterprise credentials are stored as GitHub environment secrets.
+managed identity, the environment-scoped GitHub OIDC trust, and the matching
+GitHub environment. Production requires approval from `caesdo-devs` and blocks
+self-review. The bootstrap does not create an Azure client secret. GitHub
+receives only KOI API-key IDs and SHA-256 hashes, never plaintext KOI bearer
+tokens; Aggie Enterprise credentials are stored as GitHub environment secrets.
 
 See [Azure deployment](docs/deployment.md) for the resource boundary,
 bootstrap procedure, deployment flow, verification, and rollback.

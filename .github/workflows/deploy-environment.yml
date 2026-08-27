@@ -1,0 +1,241 @@
+name: Deploy environment
+
+on:
+  workflow_call:
+    inputs:
+      deployment_environment:
+        description: GitHub environment to deploy.
+        required: true
+        type: string
+      revision:
+        description: Full Git revision contained in the deployment artifact.
+        required: true
+        type: string
+      service_version:
+        description: Application version written to telemetry resources.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy ${{ inputs.deployment_environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    environment:
+      name: ${{ inputs.deployment_environment }}
+      url: ${{ steps.infrastructure.outputs.function_url }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download immutable deployment artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: koi-deployment-${{ inputs.revision }}
+          path: artifacts/deployment/
+
+      - name: Sign in to Azure with GitHub OIDC
+        uses: azure/login@f5d393ae46f8fde4be8b75f32e3fc50e654ad0ca # v3.0.1
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Verify Azure deployment boundary
+        shell: bash
+        env:
+          EXPECTED_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          EXPECTED_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+        run: |
+          selected_subscription="$(az account show --query id --output tsv)"
+          selected_tenant="$(az account show --query tenantId --output tsv)"
+
+          if [[ "$selected_subscription" != "$EXPECTED_SUBSCRIPTION_ID" ]]; then
+            echo "Azure login selected unexpected subscription $selected_subscription." >&2
+            exit 1
+          fi
+
+          if [[ "$selected_tenant" != "$EXPECTED_TENANT_ID" ]]; then
+            echo "Azure login selected unexpected tenant $selected_tenant." >&2
+            exit 1
+          fi
+
+          resource_group_id="$(az group show \
+            --name "$AZURE_RESOURCE_GROUP" \
+            --query id \
+            --output tsv)"
+          expected_resource_group_id="/subscriptions/$EXPECTED_SUBSCRIPTION_ID/resourceGroups/$AZURE_RESOURCE_GROUP"
+
+          if [[ "${resource_group_id,,}" != "${expected_resource_group_id,,}" ]]; then
+            echo "Resource group resolved outside the expected deployment boundary." >&2
+            exit 1
+          fi
+
+      - name: Synchronize Bicep infrastructure
+        id: infrastructure
+        shell: bash
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.deployment_environment }}
+          AZURE_ENVIRONMENT_NAME: ${{ vars.AZURE_ENVIRONMENT_NAME }}
+          AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          API_KEY_1_ID: ${{ vars.KOI_API_KEY_1_ID }}
+          API_KEY_1_SHA256: ${{ secrets.KOI_API_KEY_1_SHA256 }}
+          API_KEY_2_ID: ${{ vars.KOI_API_KEY_2_ID }}
+          API_KEY_2_SHA256: ${{ secrets.KOI_API_KEY_2_SHA256 }}
+          FINANCIAL_API_URL: ${{ vars.FINANCIAL_API_URL }}
+          FINANCIAL_CONSUMER_KEY: ${{ secrets.FINANCIAL_CONSUMER_KEY }}
+          FINANCIAL_CONSUMER_SECRET: ${{ secrets.FINANCIAL_CONSUMER_SECRET }}
+          FINANCIAL_TOKEN_ENDPOINT: ${{ vars.FINANCIAL_TOKEN_ENDPOINT }}
+          FINANCIAL_SCOPE_APP: ${{ vars.FINANCIAL_SCOPE_APP }}
+          FINANCIAL_SCOPE_ENV: ${{ vars.FINANCIAL_SCOPE_ENV }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ vars.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          SERVICE_VERSION: ${{ inputs.service_version }}
+        run: |
+          if [[ ! "$DEPLOYMENT_ENVIRONMENT" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
+            echo "Invalid deployment environment name." >&2
+            exit 1
+          fi
+
+          if [[ ! "$API_KEY_1_SHA256" =~ ^[0-9a-fA-F]{64}$ ]] \
+            || [[ ! "$API_KEY_2_SHA256" =~ ^[0-9a-fA-F]{64}$ ]]; then
+            echo "GitHub environment API-key hashes are missing or invalid." >&2
+            exit 1
+          fi
+
+          if [[ ! "$FINANCIAL_API_URL" =~ ^https://[^[:space:]]+$ \
+            || ! "$FINANCIAL_TOKEN_ENDPOINT" =~ ^https://[^[:space:]]+$ \
+            || -z "$FINANCIAL_CONSUMER_KEY" \
+            || -z "$FINANCIAL_CONSUMER_SECRET" \
+            || -z "$FINANCIAL_SCOPE_APP" \
+            || -z "$FINANCIAL_SCOPE_ENV" ]]; then
+            echo "GitHub environment Financial API settings are missing or invalid." >&2
+            exit 1
+          fi
+
+          for financial_value in \
+            "$FINANCIAL_CONSUMER_KEY" \
+            "$FINANCIAL_CONSUMER_SECRET" \
+            "$FINANCIAL_SCOPE_APP" \
+            "$FINANCIAL_SCOPE_ENV"; do
+            if [[ "$financial_value" == *$'\n'* || "$financial_value" == *$'\r'* ]]; then
+              echo "GitHub environment Financial API settings must not contain newlines." >&2
+              exit 1
+            fi
+          done
+
+          OTEL_EXPORTER_OTLP_PROTOCOL="${OTEL_EXPORTER_OTLP_PROTOCOL:-grpc}"
+
+          if [[ ! "$OTEL_EXPORTER_OTLP_ENDPOINT" =~ ^https://[^[:space:]]+$ \
+            || -z "$OTEL_EXPORTER_OTLP_HEADERS" \
+            || ! "$OTEL_EXPORTER_OTLP_PROTOCOL" =~ ^(grpc|http/protobuf)$ ]]; then
+            echo "GitHub environment OTLP endpoint or authentication headers are missing or invalid." >&2
+            exit 1
+          fi
+
+          deployment_name="koi-${AZURE_ENVIRONMENT_NAME}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          parameters_file="$RUNNER_TEMP/koi-${DEPLOYMENT_ENVIRONMENT}-parameters-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.json"
+          umask 077
+          trap 'rm -f "$parameters_file"' EXIT
+          jq -n '
+            {
+              "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+              contentVersion: "1.0.0.0",
+              parameters: {
+                environmentName: { value: env.AZURE_ENVIRONMENT_NAME },
+                location: { value: env.AZURE_LOCATION },
+                apiKey1Id: { value: env.API_KEY_1_ID },
+                apiKey1Sha256: { value: env.API_KEY_1_SHA256 },
+                apiKey2Id: { value: env.API_KEY_2_ID },
+                apiKey2Sha256: { value: env.API_KEY_2_SHA256 },
+                financialApiUrl: { value: env.FINANCIAL_API_URL },
+                financialConsumerKey: { value: env.FINANCIAL_CONSUMER_KEY },
+                financialConsumerSecret: { value: env.FINANCIAL_CONSUMER_SECRET },
+                financialTokenEndpoint: { value: env.FINANCIAL_TOKEN_ENDPOINT },
+                financialScopeApp: { value: env.FINANCIAL_SCOPE_APP },
+                financialScopeEnv: { value: env.FINANCIAL_SCOPE_ENV },
+                otelExporterOtlpEndpoint: { value: env.OTEL_EXPORTER_OTLP_ENDPOINT },
+                otelExporterOtlpHeaders: { value: env.OTEL_EXPORTER_OTLP_HEADERS },
+                otelExporterOtlpProtocol: { value: env.OTEL_EXPORTER_OTLP_PROTOCOL },
+                serviceVersion: { value: env.SERVICE_VERSION }
+              }
+            }
+          ' >"$parameters_file"
+
+          az deployment group what-if \
+            --name "$deployment_name" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file artifacts/deployment/main.json \
+            --parameters "@$parameters_file" \
+            --no-pretty-print \
+            --output none
+
+          deployment_outputs="$(az deployment group create \
+            --name "$deployment_name" \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --template-file artifacts/deployment/main.json \
+            --parameters "@$parameters_file" \
+            --query properties.outputs \
+            --output json)"
+
+          function_app_name="$(jq -r '.functionAppName.value' <<<"$deployment_outputs")"
+          function_url="$(jq -r '.functionAppUrl.value' <<<"$deployment_outputs")"
+
+          if [[ -z "$function_app_name" || "$function_app_name" == "null" \
+            || ! "$function_url" =~ ^https://[a-z0-9-]+\.azurewebsites\.net$ ]]; then
+            echo "Bicep deployment returned invalid Function outputs." >&2
+            exit 1
+          fi
+
+          {
+            echo "function_app_name=$function_app_name"
+            echo "function_url=$function_url"
+            echo "otel_protocol=$OTEL_EXPORTER_OTLP_PROTOCOL"
+          } >>"$GITHUB_OUTPUT"
+
+      - name: Deploy Function package
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          FUNCTION_APP_NAME: ${{ steps.infrastructure.outputs.function_app_name }}
+        run: |
+          az functionapp deployment source config-zip \
+            --resource-group "$AZURE_RESOURCE_GROUP" \
+            --name "$FUNCTION_APP_NAME" \
+            --src artifacts/deployment/koi-functions.zip \
+            --timeout 600 \
+            --output none
+
+      - name: Verify deployed contract
+        env:
+          FUNCTION_URL: ${{ steps.infrastructure.outputs.function_url }}
+          REVISION: ${{ inputs.revision }}
+        run: ./scripts/smoke-deployed.sh "$FUNCTION_URL" "$REVISION"
+
+      - name: Record deployment summary
+        env:
+          DEPLOYMENT_ENVIRONMENT: ${{ inputs.deployment_environment }}
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          FUNCTION_APP_NAME: ${{ steps.infrastructure.outputs.function_app_name }}
+          FUNCTION_URL: ${{ steps.infrastructure.outputs.function_url }}
+          OTEL_PROTOCOL: ${{ steps.infrastructure.outputs.otel_protocol }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          {
+            echo "### KOI $DEPLOYMENT_ENVIRONMENT deployment"
+            echo
+            echo "- Resource group: \`$AZURE_RESOURCE_GROUP\`"
+            echo "- Function app: \`$FUNCTION_APP_NAME\`"
+            echo "- Telemetry: Elastic via OTLP (\`$OTEL_PROTOCOL\`)"
+            echo "- URL: $FUNCTION_URL"
+            echo "- Revision: \`$REVISION\`"
+          } >>"$GITHUB_STEP_SUMMARY"

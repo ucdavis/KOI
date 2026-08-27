@@ -155,7 +155,7 @@ resource functionPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
   }
 }
 
-resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
+resource functionApp 'Microsoft.Web/sites@2024-11-01' = {
   name: functionAppName
   location: location
   kind: 'functionapp,linux'
@@ -188,6 +188,9 @@ resource functionApp 'Microsoft.Web/sites@2024-04-01' = {
     httpsOnly: true
     publicNetworkAccess: 'Enabled'
     serverFarmId: functionPlan.id
+    // Azure Functions documents this Flex property, but Bicep types lag the ARM API.
+    #disable-next-line BCP037
+    siteScopedCertificatesEnabled: true
     siteConfig: {
       alwaysOn: false
       ftpsState: 'Disabled'
