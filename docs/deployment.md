@@ -223,9 +223,16 @@ telemetry delivery.
 ## Custom domains
 
 Keep the `azurewebsites.net` URL as the deployment and smoke-test endpoint. Add
-`koi-test.ucdavis.edu` and `koi.ucdavis.edu` as separate custom-domain URLs only
-after their DNS records and managed certificates exist. A custom-domain outage
-must not hide the state of the underlying Function deployment.
+`koi-test.ucdavis.edu` and `koi.ucdavis.edu` after their Function Apps exist:
+
+1. Deploy the Function and verify its `azurewebsites.net` URL.
+2. Configure the DNS records required to validate the custom hostname.
+3. Map the custom hostname to the existing Function App.
+4. Request an App Service managed certificate for the mapped hostname, then bind
+   it to the custom domain.
+
+The custom domains supplement the default URLs. A custom-domain outage must not
+hide the state of the underlying Function deployment.
 
 ## Rollback
 
