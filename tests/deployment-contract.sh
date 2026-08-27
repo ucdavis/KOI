@@ -28,6 +28,8 @@ raise "environment deployments must share one workflow" unless test_deploy.fetch
 raise "unexpected reusable deployment workflow" unless test_deploy.fetch("uses") == "./.github/workflows/deploy-environment.yml"
 raise "test environment input is wrong" unless test_deploy.fetch("with").fetch("deployment_environment") == "test"
 raise "production environment input is wrong" unless production_deploy.fetch("with").fetch("deployment_environment") == "production"
+raise "test environment secrets are not inherited" unless test_deploy.fetch("secrets") == "inherit"
+raise "production environment secrets are not inherited" unless production_deploy.fetch("secrets") == "inherit"
 raise "test revision is not the triggering commit" unless test_deploy.fetch("with").fetch("revision") == "${{ github.sha }}"
 raise "production revision differs from test" unless production_deploy.fetch("with").fetch("revision") == test_deploy.fetch("with").fetch("revision")
 raise "service version is not reused" unless production_deploy.fetch("with").fetch("service_version") == test_deploy.fetch("with").fetch("service_version")
