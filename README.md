@@ -98,10 +98,10 @@ Analytics are not provisioned.
 
 The one-time bootstrap creates the Bicep-managed resource group and deployment
 managed identity, the environment-scoped GitHub OIDC trust, and the matching
-GitHub environment. Production requires approval from `caesdo-devs` and blocks
-self-review. The bootstrap does not create an Azure client secret. GitHub
-receives only KOI API-key IDs and SHA-256 hashes, never plaintext KOI bearer
-tokens; Aggie Enterprise credentials are stored as GitHub environment secrets.
+GitHub environment. The bootstrap does not create an Azure client secret.
+GitHub receives only KOI API-key IDs and SHA-256 hashes, never plaintext KOI
+bearer tokens; Aggie Enterprise credentials are stored as GitHub environment
+secrets.
 
 See [Azure deployment](docs/deployment.md) for the resource boundary,
 bootstrap procedure, deployment flow, verification, and rollback.

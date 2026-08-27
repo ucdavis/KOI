@@ -6,21 +6,16 @@ managed identities, GitHub environments, credentials, and downstream settings.
 
 ## Deployment boundaries
 
-| Setting | Test | Production |
-| --- | --- | --- |
-| Subscription | `UC Davis CAES Test` (`105dede4-4731-492e-8c28-5121226319b0`) | `UC Davis CAES Production` (`003283b1-cc5e-417a-b037-01ff3c05537b`) |
-| Tenant | `a8046f64-66c0-4f00-9046-c8daf92ff62b` | `a8046f64-66c0-4f00-9046-c8daf92ff62b` |
-| Region | West US 2 (`westus2`) | West US 2 (`westus2`) |
-| Resource group | `rg-koi-test` | `rg-koi-prod` |
-| Resource environment name | `test` | `prod` |
-| GitHub environment | `test` | `production` |
-| Required reviewer team | None | `caesdo-devs` |
-| Self-review | Allowed | Blocked |
-| Deployment branch | `main` | `main` |
+The tracked environment files own every non-secret boundary value and review
+policy:
 
-The tracked, non-secret values live in `infra/environments/<environment>.env`.
-The deployment scripts verify the selected subscription and tenant before any
-Azure write. Do not rely on the Azure CLI's previously selected subscription.
+- [`infra/environments/test.env`](../infra/environments/test.env)
+- [`infra/environments/production.env`](../infra/environments/production.env)
+
+The deployment scripts load these files and verify the selected subscription
+and tenant before any Azure write. Do not rely on the Azure CLI's previously
+selected subscription. Both GitHub environments admit deployments only from
+`main`.
 
 The production entries are configuration only until an operator runs the
 production bootstrap. This branch does not create the production resource group,
@@ -87,9 +82,7 @@ The bootstrap performs these bounded operations:
    `Contributor` assignment.
 5. Creates or synchronizes the matching GitHub environment and restricts it to
    `main`.
-6. Applies the configured reviewer teams and self-review policy. Production
-   requires `caesdo-devs` approval and prevents the person who started the run
-   from approving it.
+6. Applies the configured reviewer teams and self-review policy.
 7. Writes the non-secret Azure and API-key ID variables to the GitHub
    environment.
 8. Stores only the two SHA-256 API-key hashes as GitHub environment secrets.
@@ -172,7 +165,7 @@ The workflows use pinned action commit SHAs and minimal job permissions.
   and proves the public contract and deployed revision.
 - `deploy_production` has `needs: deploy_test`, so it cannot start until the test
   deployment and smoke test succeed. It targets the protected `production`
-  environment and waits for `caesdo-devs` approval before it receives production
+  environment and waits for a configured reviewer before it receives production
   secrets or an Azure OIDC token.
 - After approval, production deploys the exact artifact and revision that passed
   test, then runs the same public smoke test.
