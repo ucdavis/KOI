@@ -35,6 +35,9 @@ jobs:
       - name: Install pinned Bicep CLI
         run: az bicep install --version v0.46.1
 
+      - name: Validate deployment contract
+        run: bash tests/deployment-contract.sh
+
       - name: Publish Function and compile Bicep
         env:
           KOI_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}

@@ -156,7 +156,8 @@ gitignored `.env`. Development startup uses `deployment.environment=local`.
 The workflows use pinned action commit SHAs and minimal job permissions.
 
 - `CI` runs for pull requests and manual checks. It restores locked NuGet
-  dependencies, runs the tests, publishes the Function, and compiles both
+  dependencies, runs the tests, validates the deployment contract including
+  environment-secret inheritance, publishes the Function, and compiles both
   Bicep entry points.
 - `Deploy` runs after a push to `main` or a manual dispatch. It builds and tests
   once and uploads one immutable artifact named with the full commit SHA.
