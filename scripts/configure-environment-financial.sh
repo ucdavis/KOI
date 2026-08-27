@@ -1,25 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config_file="$repo_root/infra/environments/test.env"
-credential_file="$repo_root/.env.test"
+if [[ "$#" -ne 1 ]]; then
+  echo "Usage: $0 <environment>" >&2
+  exit 1
+fi
+
+readonly requested_environment="$1"
+
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/deployment-environment.sh
+source "$script_dir/deployment-environment.sh"
+load_deployment_environment "$requested_environment"
 
 if ! command -v gh >/dev/null 2>&1; then
   echo "Missing required command: gh" >&2
   exit 1
 fi
 
-if [[ ! -f "$credential_file" ]]; then
-  echo "Missing $credential_file. Add the Financial settings to a gitignored .env.test file." >&2
+if [[ ! -f "$deployment_credential_file" ]]; then
+  echo "Missing $deployment_credential_file. Add the Financial settings to the gitignored environment handoff." >&2
   exit 1
 fi
 
+chmod 600 "$deployment_credential_file"
 # shellcheck disable=SC1090
-source "$config_file"
-chmod 600 "$credential_file"
-# shellcheck disable=SC1090
-source "$credential_file"
+source "$deployment_credential_file"
+# Keep the tracked Azure and GitHub boundary authoritative over the local handoff.
+load_deployment_environment "$requested_environment"
 
 financial_api_url="${Financial__ApiUrl:-}"
 financial_consumer_key="${Financial__ConsumerKey:-}"

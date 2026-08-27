@@ -1,99 +1,98 @@
 # Azure deployment
 
 KOI uses Bicep for Azure infrastructure and GitHub Actions for application and
-infrastructure deployment. The initial target is the `test` environment.
+infrastructure deployment. Test and production have separate Azure boundaries,
+managed identities, GitHub environments, credentials, and downstream settings.
 
-## Deployment boundary
+## Deployment boundaries
 
-| Setting | Value |
-| --- | --- |
-| Subscription | `UC Davis CAES Test` (`105dede4-4731-492e-8c28-5121226319b0`) |
-| Tenant | `a8046f64-66c0-4f00-9046-c8daf92ff62b` |
-| Region | West US 2 (`westus2`) |
-| Resource group | `rg-koi-test` |
-| GitHub environment | `test` |
-| Public hostname | Direct `azurewebsites.net` hostname |
+The tracked environment files own every non-secret boundary value and review
+policy:
 
-The deployment scripts and workflow verify the subscription and tenant before
-making changes. Do not rely on the Azure CLI's previously selected
-subscription.
+- [`infra/environments/test.env`](../infra/environments/test.env)
+- [`infra/environments/production.env`](../infra/environments/production.env)
+
+The deployment scripts load these files and verify the selected subscription
+and tenant before any Azure write. Do not rely on the Azure CLI's previously
+selected subscription. Both GitHub environments admit deployments only from
+`main`.
+
+The production entries are configuration only until an operator runs the
+production bootstrap. This branch does not create the production resource group,
+managed identity, GitHub environment, credentials, or Function App by itself.
 
 ## Azure resources
 
-`infra/bootstrap.bicep` creates the resource group and GitHub deployment
-identity. `infra/main.bicep` creates all workload resources inside it:
+`infra/bootstrap.bicep` creates one resource group and one GitHub deployment
+identity per environment. `infra/main.bicep` creates the workload resources:
 
 - .NET 10 isolated Azure Function on a 2 GB Flex Consumption plan
+- site-scoped certificate support for the planned custom domain
 - system-assigned Function managed identity for future downstream access
 - private deployment container in a dedicated Storage account
 - direct OpenTelemetry export to the central Elastic collector
-- Function application settings containing API-key IDs and SHA-256 hashes
-- Function application settings containing Aggie Enterprise endpoints, scopes,
-  and OAuth credentials
+- Function settings containing API-key IDs and SHA-256 hashes
+- Function settings containing Aggie Enterprise endpoints, scopes, and OAuth
+  credentials
 
 Resource names use a stable `uniqueString` suffix derived from the subscription,
-resource group, and environment. Bicep outputs the Function name, URL, managed
-identity object ID, and Storage account name.
+resource group, and short environment name. Bicep outputs the Function name,
+default URL, managed identity object ID, and Storage account name.
 
-Application Insights and Log Analytics are intentionally not provisioned. Their
-log ingestion can incur Azure Monitor charges and would duplicate the central
-Elastic destination. Azure platform metrics remain available independently of
-Application Insights.
+Application Insights and Log Analytics are intentionally not provisioned. The
+Function sends telemetry to the central Elastic collector. Azure platform
+metrics remain available independently of Application Insights.
 
-The Function host and deployment container currently use an Azure Storage
-connection string stored in encrypted Function application settings. This keeps
-the GitHub deployment identity limited to `Contributor` on `rg-koi-test` and
-avoids granting it role-assignment administration. Moving host storage to
-managed identity is possible later, but requires Storage data-plane roles and a
-separate, tightly scoped RBAC deployment path.
+The Function host and deployment container use an Azure Storage connection
+string stored in encrypted Function settings. Each GitHub deployment identity
+has `Contributor` only on its environment's resource group.
 
-## One-time bootstrap
+## One-time environment bootstrap
 
-The bootstrap is intentionally separate because GitHub cannot use Azure OIDC
-until the user-assigned managed identity and federated credential already
-exist.
+The bootstrap is separate because GitHub cannot use Azure OIDC until the
+user-assigned managed identity and federated credential exist.
 
-Create two independent test credentials:
+Create two independent credentials for the selected environment:
 
 ```bash
-./scripts/create-test-credentials.sh
+./scripts/create-environment-credentials.sh test
+./scripts/create-environment-credentials.sh production
 ```
 
-This creates a gitignored, mode-`600` `.env.test` handoff file. Move both
+Each invocation creates a gitignored, mode-`600` handoff file named after the
+tracked environment, such as `.env.test` or `.env.production`. Move both
 plaintext tokens to the approved password manager. Never put them in GitHub or
 Azure configuration. Retain the local file only while an operator needs it for
-authenticated deployment checks or the local Elastic exporter handoff; remove
-it after the tokens are safely stored and configured in Kuali and those checks
-are complete.
+GitHub configuration or authenticated deployment checks.
 
-Run the idempotent bootstrap:
+Run the idempotent bootstrap for one environment at a time:
 
 ```bash
-./scripts/bootstrap-test.sh
+./scripts/bootstrap-environment.sh test
+./scripts/bootstrap-environment.sh production
 ```
 
-It performs these bounded operations:
+The bootstrap performs these bounded operations:
 
-1. Selects and verifies the configured Azure subscription and tenant.
-2. Deploys `infra/bootstrap.bicep` to create or synchronize `rg-koi-test`.
-3. Creates or synchronizes the `id-koi-test-deploy` user-assigned managed
-   identity with Bicep.
-4. Derives the repository's current immutable GitHub OIDC subject and creates
-   an environment-scoped federated credential on that identity with Bicep.
-5. Assigns the managed identity `Contributor` only on `rg-koi-test` with
-   Bicep.
-6. Creates the GitHub `test` environment, limits it to `main`, and configures
-   non-secret deployment variables.
-7. Stores only the two SHA-256 hashes as GitHub environment secrets.
+1. Loads and validates `infra/environments/<environment>.env`.
+2. Resolves every configured GitHub reviewer team before making an Azure change.
+3. Selects and verifies the configured Azure subscription and tenant.
+4. Deploys `infra/bootstrap.bicep` to create or synchronize the resource group,
+   environment-scoped deployment identity, OIDC credential, and resource-group
+   `Contributor` assignment.
+5. Creates or synchronizes the matching GitHub environment and restricts it to
+   `main`.
+6. Applies the configured reviewer teams and self-review policy.
+7. Writes the non-secret Azure and API-key ID variables to the GitHub
+   environment.
+8. Stores only the two SHA-256 API-key hashes as GitHub environment secrets.
 
-The Azure identity, federated credential, role assignment, resource group, and
-workload resources are Bicep-managed. The bootstrap script uses `gh` only for
-the GitHub environment, variables, branch policy, and hashed API-key secrets.
+The script never sends a plaintext KOI bearer token to GitHub or Azure.
 
 ## Aggie Enterprise Financial configuration
 
-The Financial endpoints require six Aggie Enterprise settings. Add the real
-values to the gitignored, mode-`600` `.env.test` handoff file:
+The Financial endpoints require six Aggie Enterprise settings. Add the values
+for one environment to its local handoff file:
 
 ```dotenv
 Financial__ApiUrl='https://replace-with-graphql-endpoint'
@@ -101,90 +100,83 @@ Financial__ConsumerKey='replace-with-consumer-key'
 Financial__ConsumerSecret='replace-with-consumer-secret'
 Financial__TokenEndpoint='https://replace-with-token-endpoint'
 Financial__ScopeApp='KOI'
-Financial__ScopeEnv='Test'
+Financial__ScopeEnv='replace-with-environment-scope'
 ```
 
-Synchronize those values into the GitHub `test` environment:
+Synchronize one environment at a time:
 
 ```bash
-bash ./scripts/configure-test-financial.sh
+./scripts/configure-environment-financial.sh test
+./scripts/configure-environment-financial.sh production
 ```
 
-The API URL, token endpoint, application scope, and environment scope are
-stored as GitHub environment variables. The consumer key and consumer secret
-are stored as GitHub environment secrets. The deployment workflow passes both
-credentials as secure Bicep parameters and writes all six values to the
-Function application settings under their `Financial__*` names. The Function
-validates the complete Financial configuration during startup.
+The API URL, token endpoint, application scope, and environment scope become
+GitHub environment variables. The consumer key and secret become GitHub
+environment secrets. The Function validates the complete configuration during
+startup.
 
-Do not deploy until all six GitHub values are present. Neither credential is
-written to source control, workflow output, deployment output, or
-documentation.
+Do not merge the production deployment until all six production values are
+present. Test and production values must come from their respective Aggie
+Enterprise environments.
 
 ## Elastic OpenTelemetry configuration
 
-The Function sends logs, traces, and metrics directly to the central Elastic
-collector using standard OTLP settings. The collector endpoint and protocol are
-GitHub environment variables; the authentication header is a GitHub environment
-secret and becomes a secure Bicep parameter and Function application setting.
-
-Add the real values to the gitignored, mode-`600` `.env.test` handoff file. This
-keeps the header value off the command line, shell history, and Git repository:
+Add the Elastic values to the same local environment handoff:
 
 ```dotenv
 OTEL_EXPORTER_OTLP_ENDPOINT='https://replace-with-collector-endpoint'
 OTEL_EXPORTER_OTLP_HEADERS='Authorization=ApiKey replace-with-credential'
+OTEL_EXPORTER_OTLP_PROTOCOL='grpc'
 ```
 
-Elastic commonly supplies a header in the form
-`Authorization=ApiKey <credential>`. Use the exact endpoint, protocol, and
-header issued for the central collector. `OTEL_EXPORTER_OTLP_PROTOCOL` is
-optional and defaults to `grpc`, matching the upstream .NET SDK. Set it to
-`http/protobuf` only when the Elastic endpoint specifically requires OTLP/HTTP.
-Then synchronize the values into the GitHub `test` environment:
+`OTEL_EXPORTER_OTLP_PROTOCOL` may be `grpc` or `http/protobuf` and defaults to
+`grpc`. Synchronize one environment at a time:
 
 ```bash
-./scripts/configure-test-otel.sh
+./scripts/configure-environment-otel.sh test
+./scripts/configure-environment-otel.sh production
 ```
 
-The script stores the endpoint and protocol as GitHub environment variables and
-the authentication header as a GitHub environment secret. Bicep supplies these
-resource attributes to every deployed environment:
+The endpoint and protocol become GitHub environment variables. The
+authentication header becomes a GitHub environment secret. Bicep supplies these
+resource attributes:
 
 ```text
 service.name=koi
 service.version=<version from Koi.Functions.csproj>
-deployment.environment=<test or production>
+deployment.environment=<test or prod>
 service.namespace=ucdavis
 ```
 
-For local telemetry, copy the same three `OTEL_EXPORTER_OTLP_*` values into the
-gitignored `.env`. Development startup loads them for both Visual Studio and
-`./scripts/run-local.sh`. The application derives `service.version` from its
-assembly and supplies the same resource attributes with
-`deployment.environment=local`, so `OTEL_RESOURCE_ATTRIBUTES` is not required.
-`.env.test` remains the secure deployment handoff used by the GitHub
-configuration and authenticated deployed smoke scripts. Do not deploy until
-the endpoint, resolved protocol, and authentication header are present in
-GitHub.
+For local telemetry, put the same `OTEL_EXPORTER_OTLP_*` values in the
+gitignored `.env`. Development startup uses `deployment.environment=local`.
 
-## GitHub Actions
+## Promotion workflow
 
 The workflows use pinned action commit SHAs and minimal job permissions.
 
 - `CI` runs for pull requests and manual checks. It restores locked NuGet
-  dependencies, runs the automated tests in a dedicated step, publishes, and
-  compiles both Bicep files. Any failing test returns a nonzero status, fails the
-  workflow, and reports its name, assertion, and stack trace in the test step.
-- `Deploy` runs after a push to `main` or a manual dispatch. Its build job
-  creates one immutable deployment artifact. Its `test` environment job signs
-  in through OIDC, runs Bicep what-if and deployment, deploys the exact Function
-  ZIP, and runs public smoke tests.
+  dependencies, runs the tests, publishes the Function, and compiles both
+  Bicep entry points.
+- `Deploy` runs after a push to `main` or a manual dispatch. It builds and tests
+  once and uploads one immutable artifact named with the full commit SHA.
+- `deploy_test` calls the reusable environment workflow with the `test` GitHub
+  environment. It runs Bicep what-if and deployment, deploys the Function ZIP,
+  and proves the public contract and deployed revision.
+- `deploy_production` has `needs: deploy_test`, so it cannot start until the test
+  deployment and smoke test succeed. It targets the protected `production`
+  environment and waits for a configured reviewer before it receives production
+  secrets or an Azure OIDC token.
+- After approval, production deploys the exact artifact and revision that passed
+  test, then runs the same public smoke test.
 
-The deployment workflow receives `id-token: write` only in the environment job.
-No Azure client secret or plaintext KOI bearer token is stored in GitHub. The
-Aggie Enterprise consumer key and consumer secret are stored only as GitHub
-environment secrets and encrypted Function application settings.
+The workflow-level concurrency group allows only one promotion run at a time.
+An older revision waiting for production approval cannot be leapfrogged by a
+newer run.
+
+The reusable `.github/workflows/deploy-environment.yml` owns all Azure and
+Function deployment mechanics. Environment-specific workflow copies are not
+allowed.
 
 ## Verification
 
@@ -195,68 +187,49 @@ The automated smoke test waits for the expected Git revision and verifies:
 - `/api/v1/hello` returns `401` for an invalid credential
 - unauthorized responses advertise `WWW-Authenticate: Bearer`
 
-Because GitHub never receives plaintext KOI tokens, the automated workflow
-cannot make a successful authenticated request. From the trusted local handoff,
-verify both active slots and the live Aggie Enterprise Financial integration
-after deployment with a known valid test chart string:
+GitHub never receives plaintext KOI tokens, so the automated workflow cannot
+make a successful authenticated request. From the trusted local handoff, verify
+both token slots and the live Financial integration with a known valid chart
+string:
 
 ```bash
 ./scripts/smoke-authenticated.sh \
   https://<function-app>.azurewebsites.net \
-  '<known-valid-test-chart-string>'
+  '<known-valid-chart-string>' \
+  test
+
+./scripts/smoke-authenticated.sh \
+  https://<function-app>.azurewebsites.net \
+  '<known-valid-chart-string>' \
+  production
 ```
 
-The script reads both plaintext tokens only from the gitignored `.env.test`,
-sends authorization headers to KOI through curl standard input, and never
-passes a token on the command line. It requires both token slots to return `200`
-from `/api/v1/hello`, then calls `/api/v1/financial/details/{value}` with the first slot
-and requires `200`, the requested chart string, `isValid: true`, and no errors.
-That final check proves the deployed Function can authenticate to Aggie
-Enterprise and obtain a valid Financial response without placing a plaintext
-KOI bearer token in GitHub.
+The script reads plaintext tokens only from `.env.<environment>`, sends the
+authorization header through curl standard input, and never places a token on
+the command line. It requires both token slots to return `200`, then requires a
+valid Aggie Enterprise response with no errors.
 
-The script prints the UTC start time for those three requests. Use that boundary
-to verify in Elastic that all requests arrived and that neither plaintext token
-nor a recognizable token prefix or suffix was recorded. The smoke test does not
-claim telemetry success until an Elastic query path is configured and checked.
+Use the UTC boundary printed by the script to verify Elastic ingestion and
+token redaction. A successful deployment or HTTP response does not prove
+telemetry delivery.
 
-For a direct call with the first test token:
+## Custom domains
 
-```bash
-source .env.test
-curl --silent --show-error --fail-with-body \
-  --header "Authorization: Bearer $KOI_API_KEY_1" \
-  https://<function-app>.azurewebsites.net/api/v1/hello
-```
+Keep the `azurewebsites.net` URL as the deployment and smoke-test endpoint. Add
+`koi-test.ucdavis.edu` and `koi.ucdavis.edu` after their Function Apps exist:
+
+1. Deploy the Function and verify its `azurewebsites.net` URL.
+2. Configure the DNS records required to validate the custom hostname.
+3. Map the custom hostname to the existing Function App.
+4. Request an App Service managed certificate for the mapped hostname, then bind
+   it to the custom domain.
+
+The custom domains supplement the default URLs. A custom-domain outage must not
+hide the state of the underlying Function deployment.
 
 ## Rollback
 
-Every deployment artifact is retained for 14 days and named with its full Git
-commit SHA. Re-running a successful prior `Deploy` workflow run rebuilds and
-redeploys that commit's Bicep and Function package. Confirm the health
-`revision` equals the intended rollback commit afterward.
-
-## Future production bootstrap
-
-Production should be a separate GitHub environment, Azure resource group,
-deployment managed identity, immutable OIDC credential, API-key pair, and
-Elastic telemetry configuration. Before adding it:
-
-1. Confirm the production subscription, region, resource-group name, and GitHub
-   environment reviewers.
-2. Generalize the test-specific bootstrap and configuration scripts to accept a
-   reviewed environment file; do not copy and hand-edit the test scripts.
-3. Bootstrap the production identity with `Contributor` scoped only to the
-   production resource group and verify the immutable repository/environment
-   OIDC subject.
-4. Generate production API keys into an approved password manager, then store
-   only their IDs and SHA-256 hashes in GitHub.
-5. Configure the production Aggie Enterprise endpoints, scopes, consumer key,
-   and consumer secret in the protected GitHub environment.
-6. Configure the production Elastic endpoint, protocol, and authentication
-   header, then add a production deploy job protected by the GitHub environment.
-7. Validate Bicep what-if, deploy, run public and authenticated smoke tests, and
-   prove ingestion and token redaction in Elastic.
-
-The current workflow intentionally deploys only `test`; production remains
-unreachable until that environment-specific path is implemented and reviewed.
+Deployment artifacts are retained for 14 days and named with the full commit
+SHA. Re-run the chosen prior `Deploy` workflow. It redeploys that revision to
+test first and requires a new production approval. Confirm `/api/health`
+reports the intended rollback revision in both environments.

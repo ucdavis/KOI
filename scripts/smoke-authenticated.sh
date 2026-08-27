@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ "$#" -ne 2 ]]; then
-  echo "Usage: $0 <base-url> <financial-chart-string>" >&2
+if [[ "$#" -lt 2 || "$#" -gt 3 ]]; then
+  echo "Usage: $0 <base-url> <financial-chart-string> [environment]" >&2
   exit 1
 fi
 
@@ -14,9 +14,15 @@ for required_command in curl jq; do
 done
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-credential_file="$repo_root/.env.test"
 base_url="${1%/}"
 financial_chart_string="$2"
+deployment_environment="${3:-test}"
+credential_file="$repo_root/.env.$deployment_environment"
+
+if [[ ! "$deployment_environment" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
+  echo "Deployment environment names must use lowercase letters, digits, and hyphens." >&2
+  exit 1
+fi
 
 if [[ -z "$financial_chart_string" \
   || "$financial_chart_string" == *$'\n'* \
