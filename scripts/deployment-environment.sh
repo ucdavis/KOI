@@ -10,13 +10,13 @@ load_deployment_environment() {
     return 1
   fi
 
-  local requested_environment="$1"
-  if [[ ! "$requested_environment" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
+  local environment_name="$1"
+  if [[ ! "$environment_name" =~ ^[a-z][a-z0-9-]{0,31}$ ]]; then
     echo "Deployment environment names must use lowercase letters, digits, and hyphens." >&2
     return 1
   fi
 
-  deployment_environment="$requested_environment"
+  deployment_environment="$environment_name"
   deployment_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
   deployment_config_file="$deployment_repo_root/infra/environments/$deployment_environment.env"
   deployment_credential_file="$deployment_repo_root/.env.$deployment_environment"
