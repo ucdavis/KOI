@@ -88,6 +88,47 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.Equal([cancellationTokenSource.Token], service.ValidationCancellationTokens);
     }
 
+    [Theory]
+    [InlineData(
+        true,
+        "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000",
+        "GL",
+        "This is a valid GL chart string.")]
+    [InlineData(
+        true,
+        "0000000000-000000-0000000-000000",
+        "PPM",
+        "This is a valid PPM chart string.")]
+    [InlineData(false, "invalid", "INVALID", "This is not a valid chart string.")]
+    public async Task RunValidationSerializesMessageForKualiBuild(
+        bool isValid,
+        string chartString,
+        string expectedChartType,
+        string expectedMessage)
+    {
+        var service = new TrackingAggieEnterpriseService(
+            validationResultFactory: value => new FinancialValidationResult
+            {
+                ChartString = value,
+                IsValid = isValid
+            });
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(string.Empty);
+
+        var response = await function.RunValidation(
+            request,
+            chartString,
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+        var root = document.RootElement;
+        Assert.Equal(chartString, root.GetProperty("ChartString").GetString());
+        Assert.Equal(expectedChartType, root.GetProperty("ChartType").GetString());
+        Assert.Equal(expectedMessage, root.GetProperty("Message").GetString());
+    }
+
     [Fact]
     public async Task RunBulkReturnsBadRequestWhenBatchExceedsMaximum()
     {
@@ -161,7 +202,59 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.InRange(service.MaxConcurrentValidationCalls, 2, FinancialFunction.MaxConcurrency);
     }
 
-    private sealed class TrackingAggieEnterpriseService(bool delayCalls = false)
+    [Fact]
+    public async Task RunBulkValidationSerializesMessagesForKualiBuild()
+    {
+        const string glChartString =
+            "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000";
+        const string ppmChartString = "0000000000-000000-0000000-000000";
+        const string invalidChartString = "invalid";
+        var chartStrings = new[] { glChartString, ppmChartString, invalidChartString };
+        var service = new TrackingAggieEnterpriseService(
+            validationResultFactory: value => new FinancialValidationResult
+            {
+                ChartString = value,
+                IsValid = value != invalidChartString
+            });
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(JsonSerializer.Serialize(chartStrings));
+
+        var response = await function.RunBulkValidation(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+        var results = document.RootElement.EnumerateArray().ToArray();
+        Assert.Equal(chartStrings, results.Select(result =>
+            result.GetProperty("ChartString").GetString()));
+        Assert.Collection(
+            results,
+            result =>
+            {
+                Assert.Equal("GL", result.GetProperty("ChartType").GetString());
+                Assert.Equal(
+                    "This is a valid GL chart string.",
+                    result.GetProperty("Message").GetString());
+            },
+            result =>
+            {
+                Assert.Equal("PPM", result.GetProperty("ChartType").GetString());
+                Assert.Equal(
+                    "This is a valid PPM chart string.",
+                    result.GetProperty("Message").GetString());
+            },
+            result =>
+            {
+                Assert.Equal("INVALID", result.GetProperty("ChartType").GetString());
+                Assert.Equal(
+                    "This is not a valid chart string.",
+                    result.GetProperty("Message").GetString());
+            });
+    }
+
+    private sealed class TrackingAggieEnterpriseService(
+        bool delayCalls = false,
+        Func<string, FinancialValidationResult>? validationResultFactory = null)
         : IAggieEnterpriseService
     {
         private int _activeCalls;
@@ -244,7 +337,8 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
                     await Task.Delay(delayMultiplier * 5, cancellationToken);
                 }
 
-                return new FinancialValidationResult { ChartString = segmentString };
+                return validationResultFactory?.Invoke(segmentString)
+                    ?? new FinancialValidationResult { ChartString = segmentString };
             }
             finally
             {
