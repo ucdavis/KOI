@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Collections.Concurrent;
 using System.Globalization;
+using AggieEnterpriseApi.Validation;
 using Azure.Core.Serialization;
 using Koi.Functions.Financial;
 using Koi.Functions.Financial.Models;
@@ -13,11 +14,49 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Xunit.Abstractions;
 
 namespace Koi.Functions.Tests.Financial;
 
-public sealed class FinancialFunctionTests
+public sealed class FinancialFunctionTests(ITestOutputHelper output)
 {
+    [Theory]
+    [InlineData(true, FinancialChartStringType.Gl, "GL", "This is a valid GL chart string.")]
+    [InlineData(true, FinancialChartStringType.Ppm, "PPM", "This is a valid PPM chart string.")]
+    [InlineData(false, FinancialChartStringType.Gl, "GL", "This is not a valid chart string.")]
+    [InlineData(false, FinancialChartStringType.Ppm, "PPM", "This is not a valid chart string.")]
+    [InlineData(false, FinancialChartStringType.Invalid, "INVALID", "This is not a valid chart string.")]
+    public async Task RunSerializesMessageForKualiBuild(
+        bool isValid,
+        FinancialChartStringType chartStringType,
+        string chartType,
+        string expectedMessage)
+    {
+        const string chartString = "example-chart-string";
+        var service = new StubAggieEnterpriseService(new AeDetails
+        {
+            IsValid = isValid,
+            ChartType = chartType,
+            ChartString = chartString,
+            ChartStringType = chartStringType
+        });
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(string.Empty);
+
+        var response = await function.Run(request, chartString, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+        var root = document.RootElement;
+        Assert.Equal(isValid, root.GetProperty("IsValid").GetBoolean());
+        Assert.Equal(chartType, root.GetProperty("ChartType").GetString());
+        Assert.Equal(expectedMessage, root.GetProperty("Message").GetString());
+        Assert.Equal(chartString, root.GetProperty("ChartString").GetString());
+        Assert.Equal((int)chartStringType, root.GetProperty("ChartStringType").GetInt32());
+        output.WriteLine(root.GetRawText());
+    }
+
     [Fact]
     public async Task RunPassesCancellationTokenToService()
     {
@@ -234,6 +273,24 @@ public sealed class FinancialFunctionTests
 
                 currentMaximum = observedMaximum;
             }
+        }
+    }
+
+    private sealed class StubAggieEnterpriseService(AeDetails details)
+        : IAggieEnterpriseService
+    {
+        public Task<AeDetails> GetAeDetailsAsync(
+            string segmentString,
+            CancellationToken cancellationToken)
+        {
+            return Task.FromResult(details);
+        }
+
+        public Task<FinancialValidationResult> ValidateAsync(
+            string segmentString,
+            CancellationToken cancellationToken)
+        {
+            throw new NotSupportedException();
         }
     }
 

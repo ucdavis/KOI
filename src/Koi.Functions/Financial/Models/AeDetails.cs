@@ -4,9 +4,20 @@ namespace Koi.Functions.Financial.Models;
 
 public sealed class AeDetails
 {
+    private const string InvalidChartStringMessage = "This is not a valid chart string.";
+
     public bool IsValid { get; set; } = true;
 
     public string ChartType { get; set; } = string.Empty;
+
+    public string Message => IsValid
+        ? ChartStringType switch
+        {
+            FinancialChartStringType.Gl => "This is a valid GL chart string.",
+            FinancialChartStringType.Ppm => "This is a valid PPM chart string.",
+            _ => InvalidChartStringMessage
+        }
+        : InvalidChartStringMessage;
 
     public string ChartString { get; set; } = string.Empty;
 
