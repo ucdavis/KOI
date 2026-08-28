@@ -71,17 +71,59 @@ public sealed class ResponseContractTests
     [Fact]
     public void FinancialValidationContractIsStable()
     {
+        const string chartString =
+            "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000";
         var response = new FinancialValidationResult
         {
-            ChartString = "example",
+            ChartString = chartString,
             IsValid = true,
             IsWarning = true,
             ErrorMessage = "example warning"
         };
 
-        Assert.Equal("example", response.ChartString);
+        Assert.Equal(chartString, response.ChartString);
+        Assert.Equal("GL", response.ChartType);
         Assert.True(response.IsValid);
+        Assert.Equal("This is a valid GL chart string.", response.Message);
         Assert.True(response.IsWarning);
         Assert.Equal("example warning", response.ErrorMessage);
+    }
+
+    [Theory]
+    [InlineData(
+        true,
+        "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000",
+        "GL",
+        "This is a valid GL chart string.")]
+    [InlineData(
+        true,
+        "0000000000-000000-0000000-000000",
+        "PPM",
+        "This is a valid PPM chart string.")]
+    [InlineData(
+        false,
+        "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000",
+        "GL",
+        "This is not a valid chart string.")]
+    [InlineData(
+        false,
+        "0000000000-000000-0000000-000000",
+        "PPM",
+        "This is not a valid chart string.")]
+    [InlineData(false, "invalid", "INVALID", "This is not a valid chart string.")]
+    public void FinancialValidationMessageMatchesValidationResult(
+        bool isValid,
+        string chartString,
+        string expectedChartType,
+        string expectedMessage)
+    {
+        var response = new FinancialValidationResult
+        {
+            IsValid = isValid,
+            ChartString = chartString
+        };
+
+        Assert.Equal(expectedChartType, response.ChartType);
+        Assert.Equal(expectedMessage, response.Message);
     }
 }
