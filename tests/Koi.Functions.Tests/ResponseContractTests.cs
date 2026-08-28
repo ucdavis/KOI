@@ -43,8 +43,29 @@ public sealed class ResponseContractTests
 
         Assert.True(response.IsValid);
         Assert.Equal("GL", response.ChartType);
+        Assert.Equal("This is a valid GL chart string.", response.Message);
         Assert.Equal("example", response.ChartString);
         Assert.Equal(FinancialChartStringType.Gl, response.ChartStringType);
+    }
+
+    [Theory]
+    [InlineData(true, FinancialChartStringType.Gl, "This is a valid GL chart string.")]
+    [InlineData(true, FinancialChartStringType.Ppm, "This is a valid PPM chart string.")]
+    [InlineData(false, FinancialChartStringType.Gl, "This is not a valid chart string.")]
+    [InlineData(false, FinancialChartStringType.Ppm, "This is not a valid chart string.")]
+    [InlineData(false, FinancialChartStringType.Invalid, "This is not a valid chart string.")]
+    public void FinancialDetailsMessageMatchesValidationResult(
+        bool isValid,
+        FinancialChartStringType chartStringType,
+        string expectedMessage)
+    {
+        var response = new AeDetails
+        {
+            IsValid = isValid,
+            ChartStringType = chartStringType
+        };
+
+        Assert.Equal(expectedMessage, response.Message);
     }
 
     [Fact]
