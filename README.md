@@ -14,6 +14,11 @@ Build, including financial chart details from Aggie Enterprise.
 | `GET` | `/api/v1/financial/validate/{value}` | Bearer token | Validation result for one chart string |
 | `POST` | `/api/v1/financial/validate` | Bearer token | Validation results for an array of chart strings |
 
+Financial details include a `message` for direct display in Kuali Build. Valid
+GL and PPM results return `This is a valid GL chart string.` and
+`This is a valid PPM chart string.`, respectively. Invalid results return
+`This is not a valid chart string.`
+
 All HTTP functions require authentication by default. The health function is
 the only explicit anonymous exception.
 
