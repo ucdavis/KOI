@@ -139,6 +139,12 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
                 {
                     Entity = "GL Financial Department",
                     Name = "Biological Sciences"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Award",
+                    Code = "A232815",
+                    Name = "A232815 SP0A232815 PO2610129 Electrochemically Mediated Air Separation Modules (EM-ASM)"
                 }
             ],
             Approvers =
@@ -156,7 +162,7 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
                 AwardStatus = "Active",
                 AwardStartDate = "2025-02-01",
                 AwardEndDate = "2026-11-30",
-                AwardInfo = "AWARD-123",
+                AwardInfo = "legacy award number",
                 ProjectTypeName = "Sponsored",
                 Roles =
                 [
@@ -256,7 +262,9 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.Equal("Active", root.GetProperty("awardStatus").GetString());
         Assert.Equal("2025-02-01", root.GetProperty("awardStartDate").GetString());
         Assert.Equal("2026-11-30", root.GetProperty("awardEndDate").GetString());
-        Assert.Equal("AWARD-123", root.GetProperty("awardInfo").GetString());
+        Assert.Equal(
+            "A232815 SP0A232815 PO2610129 Electrochemically Mediated Air Separation Modules (EM-ASM)",
+            root.GetProperty("awardInfo").GetString());
         Assert.Equal("Sponsored", root.GetProperty("projectTypeName").GetString());
         Assert.Equal(
             "Lovelace, Ada",

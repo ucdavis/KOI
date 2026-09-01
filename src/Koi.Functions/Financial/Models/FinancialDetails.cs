@@ -3,6 +3,7 @@ namespace Koi.Functions.Financial.Models;
 public sealed class FinancialDetails
 {
     private const string GlFinancialDepartmentEntity = "GL Financial Department";
+    private const string AwardEntity = "Award";
     private const string PrincipalInvestigatorRole = "Principal Investigator";
     private const string ProjectManagerRole = "Project Manager";
     private const string ProjectRoleType = "P";
@@ -59,18 +60,15 @@ public sealed class FinancialDetails
             ChartString = aeDetails.ChartString,
             Error = aeDetails.Error,
             Warning = aeDetails.Warning,
-            GlFinancialDepartmentName = aeDetails.SegmentDetails
-                .FirstOrDefault(segment => string.Equals(
-                    segment.Entity,
-                    GlFinancialDepartmentEntity,
-                    StringComparison.Ordinal))
-                ?.Name ?? string.Empty,
+            GlFinancialDepartmentName = FindSegmentName(
+                aeDetails,
+                GlFinancialDepartmentEntity),
             ProjectStartDate = aeDetails.PpmDetails?.ProjectStartDate ?? string.Empty,
             ProjectCompletionDate = aeDetails.PpmDetails?.ProjectCompletionDate ?? string.Empty,
             AwardStatus = aeDetails.PpmDetails?.AwardStatus ?? string.Empty,
             AwardStartDate = aeDetails.PpmDetails?.AwardStartDate ?? string.Empty,
             AwardEndDate = aeDetails.PpmDetails?.AwardEndDate ?? string.Empty,
-            AwardInfo = aeDetails.PpmDetails?.AwardInfo ?? string.Empty,
+            AwardInfo = FindSegmentName(aeDetails, AwardEntity),
             ProjectTypeName = aeDetails.PpmDetails?.ProjectTypeName ?? string.Empty,
             PrincipalInvestigatorName = principalInvestigator?.Name ?? string.Empty,
             PrincipalInvestigatorEmail = principalInvestigator?.Email ?? string.Empty,
@@ -78,6 +76,16 @@ public sealed class FinancialDetails
             ProjectManagerEmail = projectManager?.Email ?? string.Empty,
             FundPurpose = aeDetails.FundPurpose ?? string.Empty
         };
+    }
+
+    private static string FindSegmentName(AeDetails aeDetails, string entity)
+    {
+        return aeDetails.SegmentDetails
+            .FirstOrDefault(segment => string.Equals(
+                segment.Entity,
+                entity,
+                StringComparison.Ordinal))
+            ?.Name ?? string.Empty;
     }
 
     private static Approver? FindProjectRoleApprover(AeDetails aeDetails, string roleName)
