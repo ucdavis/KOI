@@ -34,6 +34,18 @@ public sealed class HttpFunctionAuthorizationPolicyTests
     }
 
     [Fact]
+    public void FinancialFullDetailsIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.FullDetailsFunctionName));
+    }
+
+    [Fact]
+    public void FinancialBulkFullDetailsIsAuthenticatedByDefault()
+    {
+        Assert.False(_policy.IsAnonymous(FinancialFunction.BulkFullDetailsFunctionName));
+    }
+
+    [Fact]
     public void FinancialValidationIsAuthenticatedByDefault()
     {
         Assert.False(_policy.IsAnonymous(FinancialFunction.ValidationFunctionName));

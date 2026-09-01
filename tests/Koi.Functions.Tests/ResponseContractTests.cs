@@ -18,7 +18,7 @@ public sealed class ResponseContractTests
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
-        Assert.Equal("0.1.1", response.Version);
+        Assert.Equal("0.1.2", response.Version);
         Assert.NotEmpty(response.Revision);
     }
 
@@ -31,7 +31,7 @@ public sealed class ResponseContractTests
     }
 
     [Fact]
-    public void FinancialDetailsContractIsStable()
+    public void FinancialFullDetailsContractIsStable()
     {
         var response = new AeDetails
         {
@@ -48,13 +48,46 @@ public sealed class ResponseContractTests
         Assert.Equal(FinancialChartStringType.Gl, response.ChartStringType);
     }
 
+    [Fact]
+    public void FinancialDetailsMapsMissingOptionalValuesToEmptyStrings()
+    {
+        var response = FinancialDetails.FromAeDetails(new AeDetails
+        {
+            IsValid = false,
+            ChartType = "INVALID",
+            ChartString = "invalid",
+            Errors = ["Invalid Chart Type"],
+            Warnings = ["Example warning"],
+            FundPurpose = null
+        });
+
+        Assert.False(response.IsValid);
+        Assert.Equal("INVALID", response.ChartType);
+        Assert.Equal("invalid", response.ChartString);
+        Assert.Equal("Invalid Chart Type", response.Error);
+        Assert.Equal("Example warning", response.Warning);
+        Assert.Equal(string.Empty, response.GlFinancialDepartmentName);
+        Assert.Equal(string.Empty, response.ProjectStartDate);
+        Assert.Equal(string.Empty, response.ProjectCompletionDate);
+        Assert.Equal(string.Empty, response.AwardStatus);
+        Assert.Equal(string.Empty, response.AwardStartDate);
+        Assert.Equal(string.Empty, response.AwardEndDate);
+        Assert.Equal(string.Empty, response.AwardInfo);
+        Assert.Equal(string.Empty, response.ProjectTypeName);
+        Assert.Equal(string.Empty, response.PrincipalInvestigatorName);
+        Assert.Equal(string.Empty, response.PrincipalInvestigatorEmail);
+        Assert.Equal(string.Empty, response.ProjectManagerName);
+        Assert.Equal(string.Empty, response.ProjectManagerEmail);
+        Assert.Equal(string.Empty, response.FundPurpose);
+    }
+
     [Theory]
     [InlineData(true, FinancialChartStringType.Gl, "This is a valid GL chart string.")]
     [InlineData(true, FinancialChartStringType.Ppm, "This is a valid PPM chart string.")]
     [InlineData(false, FinancialChartStringType.Gl, "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Ppm, "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Invalid, "This is not a valid chart string.")]
-    public void FinancialDetailsMessageMatchesValidationResult(
+    public void FinancialFullDetailsMessageMatchesValidationResult(
         bool isValid,
         FinancialChartStringType chartStringType,
         string expectedMessage)

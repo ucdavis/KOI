@@ -1,9 +1,10 @@
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Net;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using System.Collections.Concurrent;
-using System.Globalization;
 using AggieEnterpriseApi.Validation;
 using Azure.Core.Serialization;
 using Koi.Functions.Financial;
@@ -20,13 +21,72 @@ namespace Koi.Functions.Tests.Financial;
 
 public sealed class FinancialFunctionTests(ITestOutputHelper output)
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        PropertyNameCaseInsensitive = false
+    };
+
+    [Theory]
+    [InlineData(
+        nameof(FinancialFunction.Run),
+        FinancialFunction.FunctionName,
+        "get",
+        "v1/financial/details/{value}")]
+    [InlineData(
+        nameof(FinancialFunction.RunBulk),
+        FinancialFunction.BulkFunctionName,
+        "post",
+        "v1/financial/details")]
+    [InlineData(
+        nameof(FinancialFunction.RunFullDetails),
+        FinancialFunction.FullDetailsFunctionName,
+        "get",
+        "v1/financial/full-details/{value}")]
+    [InlineData(
+        nameof(FinancialFunction.RunBulkFullDetails),
+        FinancialFunction.BulkFullDetailsFunctionName,
+        "post",
+        "v1/financial/full-details")]
+    [InlineData(
+        nameof(FinancialFunction.RunValidation),
+        FinancialFunction.ValidationFunctionName,
+        "get",
+        "v1/financial/validate/{value}")]
+    [InlineData(
+        nameof(FinancialFunction.RunBulkValidation),
+        FinancialFunction.BulkValidationFunctionName,
+        "post",
+        "v1/financial/validate")]
+    public void FinancialRoutesAreStable(
+        string methodName,
+        string expectedFunctionName,
+        string expectedHttpMethod,
+        string expectedRoute)
+    {
+        var method = typeof(FinancialFunction).GetMethod(methodName);
+        Assert.NotNull(method);
+
+        var function = method.GetCustomAttribute<FunctionAttribute>();
+        Assert.Equal(expectedFunctionName, function?.Name);
+
+        var requestParameter = method.GetParameters()
+            .Single(parameter => parameter.ParameterType == typeof(HttpRequestData));
+        var trigger = requestParameter.GetCustomAttribute<HttpTriggerAttribute>();
+        Assert.NotNull(trigger);
+        Assert.Equal(expectedRoute, trigger.Route);
+        var methods = trigger.Methods ?? [];
+        Assert.Contains(
+            methods,
+            method => string.Equals(method, expectedHttpMethod, StringComparison.OrdinalIgnoreCase));
+    }
+
     [Theory]
     [InlineData(true, FinancialChartStringType.Gl, "GL", "This is a valid GL chart string.")]
     [InlineData(true, FinancialChartStringType.Ppm, "PPM", "This is a valid PPM chart string.")]
     [InlineData(false, FinancialChartStringType.Gl, "GL", "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Ppm, "PPM", "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Invalid, "INVALID", "This is not a valid chart string.")]
-    public async Task RunSerializesMessageForKualiBuild(
+    public async Task RunFullDetailsSerializesMessageForKualiBuild(
         bool isValid,
         FinancialChartStringType chartStringType,
         string chartType,
@@ -43,18 +103,187 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         var function = new FinancialFunction(service);
         var request = TestHttpRequestData.Create(string.Empty);
 
+        var response = await function.RunFullDetails(
+            request,
+            chartString,
+            CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        response.Body.Position = 0;
+        using var document = await JsonDocument.ParseAsync(response.Body);
+        var root = document.RootElement;
+        Assert.Equal(isValid, root.GetProperty("isValid").GetBoolean());
+        Assert.Equal(chartType, root.GetProperty("chartType").GetString());
+        Assert.Equal(expectedMessage, root.GetProperty("message").GetString());
+        Assert.Equal(chartString, root.GetProperty("chartString").GetString());
+        Assert.Equal((int)chartStringType, root.GetProperty("chartStringType").GetInt32());
+        output.WriteLine(root.GetRawText());
+    }
+
+    [Fact]
+    public async Task RunReturnsOnlyFlatMappedFinancialDetails()
+    {
+        const string chartString = "0000000000-000000-0000000-000000";
+        var service = new StubAggieEnterpriseService(new AeDetails
+        {
+            IsValid = false,
+            ChartType = "PPM",
+            ChartString = chartString,
+            ChartStringType = FinancialChartStringType.Ppm,
+            Errors = ["First error.", "Second error."],
+            Warnings = ["First warning.", "Second warning."],
+            FundPurpose = "Research",
+            SegmentDetails =
+            [
+                new SegmentDetails
+                {
+                    Entity = "GL Financial Department",
+                    Name = "Biological Sciences"
+                }
+            ],
+            Approvers =
+            [
+                new Approver
+                {
+                    FullName = "Full-details approver",
+                    Email = "full-details@example.test"
+                }
+            ],
+            PpmDetails = new PpmDetails
+            {
+                ProjectStartDate = "2025-01-01",
+                ProjectCompletionDate = "2026-12-31",
+                AwardStatus = "Active",
+                AwardStartDate = "2025-02-01",
+                AwardEndDate = "2026-11-30",
+                AwardInfo = "AWARD-123",
+                ProjectTypeName = "Sponsored",
+                Roles =
+                [
+                    new PpmRoles
+                    {
+                        RoleName = "Principal Investigator",
+                        Type = "A",
+                        Approvers =
+                        [
+                            new Approver
+                            {
+                                FullName = "Award Principal Investigator",
+                                Email = "award-pi@example.test"
+                            }
+                        ]
+                    },
+                    new PpmRoles
+                    {
+                        RoleName = "Principal Investigator",
+                        Type = "P",
+                        Approvers =
+                        [
+                            new Approver
+                            {
+                                FirstName = "Ada",
+                                LastName = "Lovelace",
+                                Email = "ada@example.test"
+                            },
+                            new Approver
+                            {
+                                FullName = "Second Project Principal Investigator",
+                                Email = "second-pi@example.test"
+                            }
+                        ]
+                    },
+                    new PpmRoles
+                    {
+                        RoleName = "Project Manager",
+                        Type = "P",
+                        Approvers =
+                        [
+                            new Approver
+                            {
+                                FullName = "Grace Hopper",
+                                Email = "grace@example.test"
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(string.Empty);
+
         var response = await function.Run(request, chartString, CancellationToken.None);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         response.Body.Position = 0;
         using var document = await JsonDocument.ParseAsync(response.Body);
         var root = document.RootElement;
-        Assert.Equal(isValid, root.GetProperty("IsValid").GetBoolean());
-        Assert.Equal(chartType, root.GetProperty("ChartType").GetString());
-        Assert.Equal(expectedMessage, root.GetProperty("Message").GetString());
-        Assert.Equal(chartString, root.GetProperty("ChartString").GetString());
-        Assert.Equal((int)chartStringType, root.GetProperty("ChartStringType").GetInt32());
-        output.WriteLine(root.GetRawText());
+
+        var expectedProperties = new[]
+        {
+            "isValid",
+            "chartType",
+            "chartString",
+            "error",
+            "warning",
+            "glFinancialDepartmentName",
+            "projectStartDate",
+            "projectCompletionDate",
+            "awardStatus",
+            "awardStartDate",
+            "awardEndDate",
+            "awardInfo",
+            "projectTypeName",
+            "principalInvestigatorName",
+            "principalInvestigatorEmail",
+            "projectManagerName",
+            "projectManagerEmail",
+            "fundPurpose"
+        };
+        Assert.Equal(
+            expectedProperties.Order(StringComparer.Ordinal),
+            root.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+
+        Assert.False(root.GetProperty("isValid").GetBoolean());
+        Assert.Equal("PPM", root.GetProperty("chartType").GetString());
+        Assert.Equal(chartString, root.GetProperty("chartString").GetString());
+        Assert.Equal("First error. Second error.", root.GetProperty("error").GetString());
+        Assert.Equal("First warning. Second warning.", root.GetProperty("warning").GetString());
+        Assert.Equal(
+            "Biological Sciences",
+            root.GetProperty("glFinancialDepartmentName").GetString());
+        Assert.Equal("2025-01-01", root.GetProperty("projectStartDate").GetString());
+        Assert.Equal("2026-12-31", root.GetProperty("projectCompletionDate").GetString());
+        Assert.Equal("Active", root.GetProperty("awardStatus").GetString());
+        Assert.Equal("2025-02-01", root.GetProperty("awardStartDate").GetString());
+        Assert.Equal("2026-11-30", root.GetProperty("awardEndDate").GetString());
+        Assert.Equal("AWARD-123", root.GetProperty("awardInfo").GetString());
+        Assert.Equal("Sponsored", root.GetProperty("projectTypeName").GetString());
+        Assert.Equal(
+            "Lovelace, Ada",
+            root.GetProperty("principalInvestigatorName").GetString());
+        Assert.Equal(
+            "ada@example.test",
+            root.GetProperty("principalInvestigatorEmail").GetString());
+        Assert.Equal("Grace Hopper", root.GetProperty("projectManagerName").GetString());
+        Assert.Equal(
+            "grace@example.test",
+            root.GetProperty("projectManagerEmail").GetString());
+        Assert.Equal("Research", root.GetProperty("fundPurpose").GetString());
+
+        string[] fullDetailsOnlyProperties =
+        [
+            "message",
+            "chartStringType",
+            "errors",
+            "warnings",
+            "segmentDetails",
+            "approvers",
+            "ppmDetails",
+            "hasWarnings"
+        ];
+        Assert.All(
+            fullDetailsOnlyProperties,
+            propertyName => Assert.False(root.TryGetProperty(propertyName, out _)));
     }
 
     [Fact]
@@ -124,9 +353,9 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         response.Body.Position = 0;
         using var document = await JsonDocument.ParseAsync(response.Body);
         var root = document.RootElement;
-        Assert.Equal(chartString, root.GetProperty("ChartString").GetString());
-        Assert.Equal(expectedChartType, root.GetProperty("ChartType").GetString());
-        Assert.Equal(expectedMessage, root.GetProperty("Message").GetString());
+        Assert.Equal(chartString, root.GetProperty("chartString").GetString());
+        Assert.Equal(expectedChartType, root.GetProperty("chartType").GetString());
+        Assert.Equal(expectedMessage, root.GetProperty("message").GetString());
     }
 
     [Fact]
@@ -147,6 +376,7 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         response.Body.Position = 0;
         var error = await JsonSerializer.DeserializeAsync<ErrorResponse>(
             response.Body,
+            JsonOptions,
             cancellationToken: CancellationToken.None);
         Assert.Equal(
             $"request body must contain no more than {FinancialFunction.MaxBatchSize} chart strings",
@@ -169,7 +399,9 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         response.Body.Position = 0;
-        var results = await JsonSerializer.DeserializeAsync<AeDetails[]>(response.Body);
+        var results = await JsonSerializer.DeserializeAsync<FinancialDetails[]>(
+            response.Body,
+            JsonOptions);
         Assert.NotNull(results);
         Assert.Equal(chartStrings, results.Select(result => result.ChartString));
         Assert.NotEqual(chartStrings, service.CompletionOrder);
@@ -178,6 +410,57 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.All(
             service.CancellationTokens,
             cancellationToken => Assert.True(cancellationToken.CanBeCanceled));
+    }
+
+    [Fact]
+    public async Task RunBulkFullDetailsPreservesOriginalResponseGraph()
+    {
+        var chartStrings = new[] { "chart-one", "chart-two" };
+        var service = new TrackingAggieEnterpriseService(
+            detailsFactory: chartString => new AeDetails
+            {
+                ChartString = chartString,
+                ChartStringType = FinancialChartStringType.Ppm,
+                SegmentDetails =
+                [
+                    new SegmentDetails
+                    {
+                        Entity = "GL Financial Department",
+                        Name = $"Department for {chartString}"
+                    }
+                ],
+                PpmDetails = new PpmDetails
+                {
+                    ProjectTypeName = $"Project type for {chartString}"
+                }
+            });
+        var function = new FinancialFunction(service);
+        var request = TestHttpRequestData.Create(JsonSerializer.Serialize(chartStrings));
+
+        var response = await function.RunBulkFullDetails(request, CancellationToken.None);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        response.Body.Position = 0;
+        var results = await JsonSerializer.DeserializeAsync<AeDetails[]>(
+            response.Body,
+            JsonOptions);
+        Assert.NotNull(results);
+        Assert.Collection(
+            results,
+            result =>
+            {
+                Assert.Equal("chart-one", result.ChartString);
+                Assert.Equal(FinancialChartStringType.Ppm, result.ChartStringType);
+                Assert.Equal("Department for chart-one", Assert.Single(result.SegmentDetails).Name);
+                Assert.Equal("Project type for chart-one", result.PpmDetails?.ProjectTypeName);
+            },
+            result =>
+            {
+                Assert.Equal("chart-two", result.ChartString);
+                Assert.Equal(FinancialChartStringType.Ppm, result.ChartStringType);
+                Assert.Equal("Department for chart-two", Assert.Single(result.SegmentDetails).Name);
+                Assert.Equal("Project type for chart-two", result.PpmDetails?.ProjectTypeName);
+            });
     }
 
     [Fact]
@@ -195,7 +478,9 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         response.Body.Position = 0;
-        var results = await JsonSerializer.DeserializeAsync<FinancialValidationResult[]>(response.Body);
+        var results = await JsonSerializer.DeserializeAsync<FinancialValidationResult[]>(
+            response.Body,
+            JsonOptions);
         Assert.NotNull(results);
         Assert.Equal(chartStrings, results.Select(result => result.ChartString));
         Assert.Equal(chartStrings.Length, service.ValidationCallCount);
@@ -226,34 +511,35 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         using var document = await JsonDocument.ParseAsync(response.Body);
         var results = document.RootElement.EnumerateArray().ToArray();
         Assert.Equal(chartStrings, results.Select(result =>
-            result.GetProperty("ChartString").GetString()));
+            result.GetProperty("chartString").GetString()));
         Assert.Collection(
             results,
             result =>
             {
-                Assert.Equal("GL", result.GetProperty("ChartType").GetString());
+                Assert.Equal("GL", result.GetProperty("chartType").GetString());
                 Assert.Equal(
                     "This is a valid GL chart string.",
-                    result.GetProperty("Message").GetString());
+                    result.GetProperty("message").GetString());
             },
             result =>
             {
-                Assert.Equal("PPM", result.GetProperty("ChartType").GetString());
+                Assert.Equal("PPM", result.GetProperty("chartType").GetString());
                 Assert.Equal(
                     "This is a valid PPM chart string.",
-                    result.GetProperty("Message").GetString());
+                    result.GetProperty("message").GetString());
             },
             result =>
             {
-                Assert.Equal("INVALID", result.GetProperty("ChartType").GetString());
+                Assert.Equal("INVALID", result.GetProperty("chartType").GetString());
                 Assert.Equal(
                     "This is not a valid chart string.",
-                    result.GetProperty("Message").GetString());
+                    result.GetProperty("message").GetString());
             });
     }
 
     private sealed class TrackingAggieEnterpriseService(
         bool delayCalls = false,
+        Func<string, AeDetails>? detailsFactory = null,
         Func<string, FinancialValidationResult>? validationResultFactory = null)
         : IAggieEnterpriseService
     {
@@ -307,7 +593,8 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
                 }
 
                 _completionOrder.Enqueue(segmentString);
-                return new AeDetails { ChartString = segmentString };
+                return detailsFactory?.Invoke(segmentString)
+                    ?? new AeDetails { ChartString = segmentString };
             }
             finally
             {
@@ -417,7 +704,7 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
                 .AddOptions()
                 .Configure<WorkerOptions>(options =>
                 {
-                    options.Serializer = new JsonObjectSerializer();
+                    options.Serializer = new JsonObjectSerializer(JsonOptions);
                 })
                 .BuildServiceProvider();
 
