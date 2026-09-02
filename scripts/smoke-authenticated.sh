@@ -92,10 +92,10 @@ fi
 
 if ! jq --exit-status \
   --arg chart_string "$financial_chart_string" \
-  '.chartString == $chart_string and .isValid == true and (.errors | length == 0)' \
+  '.chartString == $chart_string and .isValid == true and .error == ""' \
   "$financial_body" >/dev/null; then
   echo "Financial integration returned 200 without a valid Aggie Enterprise response." >&2
-  jq '{chartString, chartStringType, isValid, error, warning}' "$financial_body" >&2
+  jq '{chartString, chartType, isValid, error, warning}' "$financial_body" >&2
   exit 1
 fi
 

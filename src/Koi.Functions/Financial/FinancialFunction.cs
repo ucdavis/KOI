@@ -22,12 +22,28 @@ public sealed class FinancialFunction
 
     public const string FunctionName = "Financial";
     public const string BulkFunctionName = "FinancialBulk";
+    public const string FullDetailsFunctionName = "FinancialFullDetails";
+    public const string BulkFullDetailsFunctionName = "FinancialFullDetailsBulk";
     public const string ValidationFunctionName = "FinancialValidation";
     public const string BulkValidationFunctionName = "FinancialValidationBulk";
 
     [Function(FunctionName)]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/details/{value}")] HttpRequestData request,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        var aeDetails = await _aggieEnterpriseService.GetAeDetailsAsync(value, cancellationToken);
+        var financialDetails = FinancialDetails.FromAeDetails(aeDetails);
+        var response = request.CreateResponse();
+        response.StatusCode = HttpStatusCode.OK;
+        await response.WriteAsJsonAsync(financialDetails, cancellationToken);
+        return response;
+    }
+
+    [Function(FullDetailsFunctionName)]
+    public async Task<HttpResponseData> RunFullDetails(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/financial/full-details/{value}")] HttpRequestData request,
         string value,
         CancellationToken cancellationToken)
     {
@@ -41,6 +57,45 @@ public sealed class FinancialFunction
     [Function(BulkFunctionName)]
     public async Task<HttpResponseData> RunBulk(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial/details")] HttpRequestData request,
+        CancellationToken cancellationToken)
+    {
+        string[]? chartStrings;
+        try
+        {
+            chartStrings = await JsonSerializer.DeserializeAsync<string[]>(
+                request.Body,
+                cancellationToken: cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return await CreateInvalidBodyResponseAsync(request, cancellationToken);
+        }
+
+        if (chartStrings is null)
+        {
+            return await CreateInvalidBodyResponseAsync(request, cancellationToken);
+        }
+
+        if (chartStrings.Length > MaxBatchSize)
+        {
+            return await CreateBadRequestResponseAsync(
+                request,
+                $"request body must contain no more than {MaxBatchSize} chart strings",
+                cancellationToken);
+        }
+
+        var aeDetails = await GetAeDetailsAsync(chartStrings, cancellationToken);
+        var financialDetails = aeDetails.Select(FinancialDetails.FromAeDetails).ToArray();
+
+        var response = request.CreateResponse();
+        response.StatusCode = HttpStatusCode.OK;
+        await response.WriteAsJsonAsync(financialDetails, cancellationToken);
+        return response;
+    }
+
+    [Function(BulkFullDetailsFunctionName)]
+    public async Task<HttpResponseData> RunBulkFullDetails(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/financial/full-details")] HttpRequestData request,
         CancellationToken cancellationToken)
     {
         string[]? chartStrings;
