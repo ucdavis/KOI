@@ -91,7 +91,7 @@ The script never sends a plaintext KOI bearer token to GitHub or Azure.
 
 ## Aggie Enterprise Financial configuration
 
-The Financial endpoints require six Aggie Enterprise settings. Add the values
+The Financial endpoint requires six Aggie Enterprise settings. Add the values
 for one environment to its local handoff file:
 
 ```dotenv

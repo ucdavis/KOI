@@ -10,6 +10,8 @@ public sealed class FinancialDetails
 
     public bool IsValid { get; set; }
 
+    public string ValidationStatus { get; set; } = string.Empty;
+
     public string ChartType { get; set; } = string.Empty;
 
     public string ChartString { get; set; } = string.Empty;
@@ -56,6 +58,7 @@ public sealed class FinancialDetails
         return new FinancialDetails
         {
             IsValid = aeDetails.IsValid,
+            ValidationStatus = aeDetails.Message,
             ChartType = aeDetails.ChartType,
             ChartString = aeDetails.ChartString,
             Error = aeDetails.Error,
