@@ -18,7 +18,7 @@ public sealed class ResponseContractTests
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
-        Assert.Equal("0.1.2", response.Version);
+        Assert.Equal("0.1.3", response.Version);
         Assert.NotEmpty(response.Revision);
     }
 
@@ -31,7 +31,7 @@ public sealed class ResponseContractTests
     }
 
     [Fact]
-    public void FinancialFullDetailsContractIsStable()
+    public void AeDetailsContractIsStable()
     {
         var response = new AeDetails
         {
@@ -86,29 +86,29 @@ public sealed class ResponseContractTests
     [InlineData(
         true,
         FinancialChartStringType.Gl,
-        "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000")]
+        "This is a valid GL chart string.")]
     [InlineData(
         true,
         FinancialChartStringType.Ppm,
-        "0000000000-000000-0000000-000000")]
-    [InlineData(false, FinancialChartStringType.Invalid, "invalid")]
-    public void FinancialDetailsValidationStatusMatchesValidationMessage(
+        "This is a valid PPM chart string.")]
+    [InlineData(
+        false,
+        FinancialChartStringType.Invalid,
+        "This is not a valid chart string.")]
+    public void FinancialDetailsValidationStatusMatchesAeDetailsMessage(
         bool isValid,
         FinancialChartStringType chartStringType,
-        string chartString)
+        string expectedMessage)
     {
-        var details = FinancialDetails.FromAeDetails(new AeDetails
+        var aeDetails = new AeDetails
         {
             IsValid = isValid,
             ChartStringType = chartStringType
-        });
-        var validation = new FinancialValidationResult
-        {
-            IsValid = isValid,
-            ChartString = chartString
         };
+        var details = FinancialDetails.FromAeDetails(aeDetails);
 
-        Assert.Equal(validation.Message, details.ValidationStatus);
+        Assert.Equal(expectedMessage, aeDetails.Message);
+        Assert.Equal(aeDetails.Message, details.ValidationStatus);
     }
 
     [Theory]
@@ -117,7 +117,7 @@ public sealed class ResponseContractTests
     [InlineData(false, FinancialChartStringType.Gl, "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Ppm, "This is not a valid chart string.")]
     [InlineData(false, FinancialChartStringType.Invalid, "This is not a valid chart string.")]
-    public void FinancialFullDetailsMessageMatchesValidationResult(
+    public void AeDetailsMessageMatchesValidationStatus(
         bool isValid,
         FinancialChartStringType chartStringType,
         string expectedMessage)
@@ -132,7 +132,7 @@ public sealed class ResponseContractTests
     }
 
     [Fact]
-    public void FinancialValidationContractIsStable()
+    public void FinancialValidationResultContractIsStable()
     {
         const string chartString =
             "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000";
@@ -174,7 +174,7 @@ public sealed class ResponseContractTests
         "PPM",
         "This is not a valid chart string.")]
     [InlineData(false, "invalid", "INVALID", "This is not a valid chart string.")]
-    public void FinancialValidationMessageMatchesValidationResult(
+    public void FinancialValidationResultDerivesChartTypeAndMessage(
         bool isValid,
         string chartString,
         string expectedChartType,

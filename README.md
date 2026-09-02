@@ -7,20 +7,13 @@ Build, including financial chart details from Aggie Enterprise.
 
 | Method | Route | Authentication | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.2","revision":"<git-sha-or-local>"}` |
+| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.3","revision":"<git-sha-or-local>"}` |
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
 | `GET` | `/api/v1/financial/details/{value}` | Bearer token | Flattened financial details for one chart string |
-| `POST` | `/api/v1/financial/details` | Bearer token | Flattened financial details for an array of chart strings |
-| `GET` | `/api/v1/financial/full-details/{value}` | Bearer token | Full financial details for one chart string |
-| `POST` | `/api/v1/financial/full-details` | Bearer token | Full financial details for an array of chart strings |
-| `GET` | `/api/v1/financial/validate/{value}` | Bearer token | Validation result for one chart string |
-| `POST` | `/api/v1/financial/validate` | Bearer token | Validation results for an array of chart strings |
 
-The `details` endpoints return a flattened subset of the Aggie Enterprise data,
-while `full-details` preserves the complete response. Financial responses include
-`chartType`; flattened details include `validationStatus`, while full details and
-validation results include the same display-ready text as `message` for Kuali
-Build. Chart types are returned as `GL`, `PPM`, or `INVALID`.
+The financial details endpoint returns a flattened subset of the Aggie Enterprise
+data. Its response includes `chartType` and the display-ready `validationStatus`
+for Kuali Build. Chart types are returned as `GL`, `PPM`, or `INVALID`.
 Valid GL and PPM results return
 `This is a valid GL chart string.` and `This is a valid PPM chart string.`,
 respectively. Invalid results return `This is not a valid chart string.`
