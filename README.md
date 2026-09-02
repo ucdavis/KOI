@@ -18,8 +18,9 @@ Build, including financial chart details from Aggie Enterprise.
 
 The `details` endpoints return a flattened subset of the Aggie Enterprise data,
 while `full-details` preserves the complete response. Financial responses include
-`chartType`; full details and validation results also include `message` for direct
-display in Kuali Build. Chart types are returned as `GL`, `PPM`, or `INVALID`.
+`chartType`; flattened details include `validationStatus`, while full details and
+validation results include the same display-ready text as `message` for Kuali
+Build. Chart types are returned as `GL`, `PPM`, or `INVALID`.
 Valid GL and PPM results return
 `This is a valid GL chart string.` and `This is a valid PPM chart string.`,
 respectively. Invalid results return `This is not a valid chart string.`

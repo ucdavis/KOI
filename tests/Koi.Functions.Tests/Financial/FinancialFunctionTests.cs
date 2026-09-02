@@ -227,6 +227,7 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
         var expectedProperties = new[]
         {
             "isValid",
+            "validationStatus",
             "chartType",
             "chartString",
             "error",
@@ -245,11 +246,18 @@ public sealed class FinancialFunctionTests(ITestOutputHelper output)
             "projectManagerEmail",
             "fundPurpose"
         };
+        var actualProperties = root.EnumerateObject()
+            .Select(property => property.Name)
+            .ToArray();
         Assert.Equal(
             expectedProperties.Order(StringComparer.Ordinal),
-            root.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+            actualProperties.Order(StringComparer.Ordinal));
+        Assert.Equal(["isValid", "validationStatus"], actualProperties.Take(2));
 
         Assert.False(root.GetProperty("isValid").GetBoolean());
+        Assert.Equal(
+            "This is not a valid chart string.",
+            root.GetProperty("validationStatus").GetString());
         Assert.Equal("PPM", root.GetProperty("chartType").GetString());
         Assert.Equal(chartString, root.GetProperty("chartString").GetString());
         Assert.Equal("First error. Second error.", root.GetProperty("error").GetString());

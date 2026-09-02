@@ -62,6 +62,7 @@ public sealed class ResponseContractTests
         });
 
         Assert.False(response.IsValid);
+        Assert.Equal("This is not a valid chart string.", response.ValidationStatus);
         Assert.Equal("INVALID", response.ChartType);
         Assert.Equal("invalid", response.ChartString);
         Assert.Equal("Invalid Chart Type", response.Error);
@@ -79,6 +80,35 @@ public sealed class ResponseContractTests
         Assert.Equal(string.Empty, response.ProjectManagerName);
         Assert.Equal(string.Empty, response.ProjectManagerEmail);
         Assert.Equal(string.Empty, response.FundPurpose);
+    }
+
+    [Theory]
+    [InlineData(
+        true,
+        FinancialChartStringType.Gl,
+        "0000-00000-0000000-000000-00-000-0000000000-000000-0000-000000-000000")]
+    [InlineData(
+        true,
+        FinancialChartStringType.Ppm,
+        "0000000000-000000-0000000-000000")]
+    [InlineData(false, FinancialChartStringType.Invalid, "invalid")]
+    public void FinancialDetailsValidationStatusMatchesValidationMessage(
+        bool isValid,
+        FinancialChartStringType chartStringType,
+        string chartString)
+    {
+        var details = FinancialDetails.FromAeDetails(new AeDetails
+        {
+            IsValid = isValid,
+            ChartStringType = chartStringType
+        });
+        var validation = new FinancialValidationResult
+        {
+            IsValid = isValid,
+            ChartString = chartString
+        };
+
+        Assert.Equal(validation.Message, details.ValidationStatus);
     }
 
     [Theory]
