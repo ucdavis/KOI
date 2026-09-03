@@ -19,11 +19,11 @@
       },
       "Dotenv.Extensions.Microsoft.Configuration": {
         "type": "Direct",
-        "requested": "[3.1.0, )",
-        "resolved": "3.1.0",
-        "contentHash": "jdnWAfpCpKjFgvCRbKVpu7z3TDe5ggqMeW9uEZS8Qx0rWGjJG3GqSpxA6bpzLC8XNAU06Hdt7nZ7daCh8R4+gA==",
+        "requested": "[3.1.1, )",
+        "resolved": "3.1.1",
+        "contentHash": "lCgDimAHSjRcHI4XXmiaxylo16s7JfesDB5bnrBsWHnQydvaiSY83TDhXdXD5aRH4XpWsfvRkbldmnloTiKrzg==",
         "dependencies": {
-          "DotEnv.Core": "3.1.0",
+          "DotEnv.Core": "3.1.1",
           "Microsoft.Extensions.Configuration": "6.0.0"
         }
       },
@@ -100,8 +100,8 @@
       },
       "DotEnv.Core": {
         "type": "Transitive",
-        "resolved": "3.1.0",
-        "contentHash": "zy7ybm9fHLoN4grng0tfUYnFQ6HIizb3jPc1Z6bC2jlJqxLkaVfCfHhnUVG/5viufM+Cr1QI/IGxWXcsxzgsXA=="
+        "resolved": "3.1.1",
+        "contentHash": "kXlttZR+jtdL5gXC/nBlFQosD48ZiHkbbgGuOBA/RefaYx76Z2g/WT+Nqo4afvdGezN7WWACCBQPiKk5hBYBWg=="
       },
       "Google.Protobuf": {
         "type": "Transitive",
