@@ -2,6 +2,17 @@ namespace Koi.Functions.Financial.Models;
 
 public sealed class FinancialDetails
 {
+    private const string EntitySegment = "Entity";
+    private const string FundSegment = "Fund";
+    private const string DepartmentSegment = "Department";
+    private const string AccountSegment = "Account";
+    private const string PurposeSegment = "Purpose";
+    private const string ProgramSegment = "Program";
+    private const string ProjectSegment = "Project";
+    private const string ActivitySegment = "Activity";
+    private const string TaskSegment = "Task";
+    private const string ExpenditureOrganizationSegment = "Expenditure Organization";
+    private const string ExpenditureTypeSegment = "Expenditure Type";
     private const string GlFinancialDepartmentEntity = "GL Financial Department";
     private const string AwardEntity = "Award";
     private const string PrincipalInvestigatorRole = "Principal Investigator";
@@ -19,6 +30,28 @@ public sealed class FinancialDetails
     public string Error { get; set; } = string.Empty;
 
     public string Warning { get; set; } = string.Empty;
+
+    public string EntityName { get; set; } = string.Empty;
+
+    public string FundName { get; set; } = string.Empty;
+
+    public string DepartmentName { get; set; } = string.Empty;
+
+    public string AccountName { get; set; } = string.Empty;
+
+    public string PurposeName { get; set; } = string.Empty;
+
+    public string ProgramName { get; set; } = string.Empty;
+
+    public string ProjectName { get; set; } = string.Empty;
+
+    public string ActivityName { get; set; } = string.Empty;
+
+    public string TaskName { get; set; } = string.Empty;
+
+    public string ExpenditureOrganizationName { get; set; } = string.Empty;
+
+    public string ExpenditureTypeName { get; set; } = string.Empty;
 
     public string GlFinancialDepartmentName { get; set; } = string.Empty;
 
@@ -63,6 +96,19 @@ public sealed class FinancialDetails
             ChartString = aeDetails.ChartString,
             Error = aeDetails.Error,
             Warning = aeDetails.Warning,
+            EntityName = FindSegmentName(aeDetails, EntitySegment),
+            FundName = FindSegmentName(aeDetails, FundSegment),
+            DepartmentName = FindSegmentName(aeDetails, DepartmentSegment),
+            AccountName = FindSegmentName(aeDetails, AccountSegment),
+            PurposeName = FindSegmentName(aeDetails, PurposeSegment),
+            ProgramName = FindSegmentName(aeDetails, ProgramSegment),
+            ProjectName = FindSegmentName(aeDetails, ProjectSegment),
+            ActivityName = FindSegmentName(aeDetails, ActivitySegment),
+            TaskName = FindSegmentName(aeDetails, TaskSegment),
+            ExpenditureOrganizationName = FindSegmentName(
+                aeDetails,
+                ExpenditureOrganizationSegment),
+            ExpenditureTypeName = FindSegmentName(aeDetails, ExpenditureTypeSegment),
             GlFinancialDepartmentName = FindSegmentName(
                 aeDetails,
                 GlFinancialDepartmentEntity),
