@@ -18,7 +18,7 @@ public sealed class ResponseContractTests
 
         Assert.Equal("healthy", response.Status);
         Assert.Equal("KOI", response.Service);
-        Assert.Equal("0.1.3", response.Version);
+        Assert.Equal("0.1.4", response.Version);
         Assert.NotEmpty(response.Revision);
     }
 
@@ -67,6 +67,17 @@ public sealed class ResponseContractTests
         Assert.Equal("invalid", response.ChartString);
         Assert.Equal("Invalid Chart Type", response.Error);
         Assert.Equal("Example warning", response.Warning);
+        Assert.Equal(string.Empty, response.EntityName);
+        Assert.Equal(string.Empty, response.FundName);
+        Assert.Equal(string.Empty, response.DepartmentName);
+        Assert.Equal(string.Empty, response.AccountName);
+        Assert.Equal(string.Empty, response.PurposeName);
+        Assert.Equal(string.Empty, response.ProgramName);
+        Assert.Equal(string.Empty, response.ProjectName);
+        Assert.Equal(string.Empty, response.ActivityName);
+        Assert.Equal(string.Empty, response.TaskName);
+        Assert.Equal(string.Empty, response.ExpenditureOrganizationName);
+        Assert.Equal(string.Empty, response.ExpenditureTypeName);
         Assert.Equal(string.Empty, response.GlFinancialDepartmentName);
         Assert.Equal(string.Empty, response.ProjectStartDate);
         Assert.Equal(string.Empty, response.ProjectCompletionDate);
@@ -80,6 +91,74 @@ public sealed class ResponseContractTests
         Assert.Equal(string.Empty, response.ProjectManagerName);
         Assert.Equal(string.Empty, response.ProjectManagerEmail);
         Assert.Equal(string.Empty, response.FundPurpose);
+    }
+
+    [Fact]
+    public void FinancialDetailsMapsGlSegmentNamesFromAeDetails()
+    {
+        var response = FinancialDetails.FromAeDetails(new AeDetails
+        {
+            ChartStringType = FinancialChartStringType.Gl,
+            SegmentDetails =
+            [
+                new SegmentDetails { Entity = "Entity", Name = "UC Davis" },
+                new SegmentDetails { Entity = "Fund", Name = "General Funds" },
+                new SegmentDetails { Entity = "Department", Name = "Computer Science" },
+                new SegmentDetails { Entity = "Account", Name = "Supplies" },
+                new SegmentDetails { Entity = "Purpose", Name = "Instruction" },
+                new SegmentDetails { Entity = "Program", Name = "Academic Programs" },
+                new SegmentDetails { Entity = "Project", Name = "Campus Project" },
+                new SegmentDetails { Entity = "Activity", Name = "Core Activity" }
+            ]
+        });
+
+        Assert.Equal("UC Davis", response.EntityName);
+        Assert.Equal("General Funds", response.FundName);
+        Assert.Equal("Computer Science", response.DepartmentName);
+        Assert.Equal("Supplies", response.AccountName);
+        Assert.Equal("Instruction", response.PurposeName);
+        Assert.Equal("Academic Programs", response.ProgramName);
+        Assert.Equal("Campus Project", response.ProjectName);
+        Assert.Equal("Core Activity", response.ActivityName);
+        Assert.Equal(string.Empty, response.TaskName);
+        Assert.Equal(string.Empty, response.ExpenditureOrganizationName);
+        Assert.Equal(string.Empty, response.ExpenditureTypeName);
+    }
+
+    [Fact]
+    public void FinancialDetailsMapsPpmSegmentNamesFromAeDetails()
+    {
+        var response = FinancialDetails.FromAeDetails(new AeDetails
+        {
+            ChartStringType = FinancialChartStringType.Ppm,
+            SegmentDetails =
+            [
+                new SegmentDetails { Entity = "Project", Name = "Research Project" },
+                new SegmentDetails { Entity = "Task", Name = "Project Task" },
+                new SegmentDetails
+                {
+                    Entity = "Expenditure Organization",
+                    Name = "Engineering"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Expenditure Type",
+                    Name = "Research Supplies"
+                }
+            ]
+        });
+
+        Assert.Equal("Research Project", response.ProjectName);
+        Assert.Equal("Project Task", response.TaskName);
+        Assert.Equal("Engineering", response.ExpenditureOrganizationName);
+        Assert.Equal("Research Supplies", response.ExpenditureTypeName);
+        Assert.Equal(string.Empty, response.EntityName);
+        Assert.Equal(string.Empty, response.FundName);
+        Assert.Equal(string.Empty, response.DepartmentName);
+        Assert.Equal(string.Empty, response.AccountName);
+        Assert.Equal(string.Empty, response.PurposeName);
+        Assert.Equal(string.Empty, response.ProgramName);
+        Assert.Equal(string.Empty, response.ActivityName);
     }
 
     [Theory]

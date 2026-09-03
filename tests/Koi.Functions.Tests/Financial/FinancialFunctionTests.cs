@@ -68,6 +68,26 @@ public sealed class FinancialFunctionTests
                     Entity = "Award",
                     Code = "A232815",
                     Name = "A232815 SP0A232815 PO2610129 Electrochemically Mediated Air Separation Modules (EM-ASM)"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Project",
+                    Name = "Air Separation Project"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Task",
+                    Name = "Prototype Development"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Expenditure Organization",
+                    Name = "Chemical Engineering"
+                },
+                new SegmentDetails
+                {
+                    Entity = "Expenditure Type",
+                    Name = "Research Supplies"
                 }
             ],
             Approvers =
@@ -156,6 +176,17 @@ public sealed class FinancialFunctionTests
             "error",
             "warning",
             "glFinancialDepartmentName",
+            "entityName",
+            "fundName",
+            "departmentName",
+            "accountName",
+            "purposeName",
+            "programName",
+            "projectName",
+            "activityName",
+            "taskName",
+            "expenditureOrganizationName",
+            "expenditureTypeName",
             "projectStartDate",
             "projectCompletionDate",
             "awardStatus",
@@ -188,6 +219,21 @@ public sealed class FinancialFunctionTests
         Assert.Equal(
             "Biological Sciences",
             root.GetProperty("glFinancialDepartmentName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("entityName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("fundName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("departmentName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("accountName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("purposeName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("programName").GetString());
+        Assert.Equal("Air Separation Project", root.GetProperty("projectName").GetString());
+        Assert.Equal(string.Empty, root.GetProperty("activityName").GetString());
+        Assert.Equal("Prototype Development", root.GetProperty("taskName").GetString());
+        Assert.Equal(
+            "Chemical Engineering",
+            root.GetProperty("expenditureOrganizationName").GetString());
+        Assert.Equal(
+            "Research Supplies",
+            root.GetProperty("expenditureTypeName").GetString());
         Assert.Equal("2025-01-01", root.GetProperty("projectStartDate").GetString());
         Assert.Equal("2026-12-31", root.GetProperty("projectCompletionDate").GetString());
         Assert.Equal("Active", root.GetProperty("awardStatus").GetString());

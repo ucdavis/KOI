@@ -7,7 +7,7 @@ Build, including financial chart details from Aggie Enterprise.
 
 | Method | Route | Authentication | Response |
 | --- | --- | --- | --- |
-| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.3","revision":"<git-sha-or-local>"}` |
+| `GET` | `/api/health` | None | `{"status":"healthy","service":"KOI","version":"0.1.4","revision":"<git-sha-or-local>"}` |
 | `GET` | `/api/v1/hello` | Bearer token | `{"message":"Hello from KOI"}` |
 | `GET` | `/api/v1/financial/details/{value}` | Bearer token | Flattened financial details for one chart string |
 
@@ -17,6 +17,12 @@ for Kuali Build. Chart types are returned as `GL`, `PPM`, or `INVALID`.
 Valid GL and PPM results return
 `This is a valid GL chart string.` and `This is a valid PPM chart string.`,
 respectively. Invalid results return `This is not a valid chart string.`
+
+Segment display names are sourced from the Aggie Enterprise segment details.
+GL responses populate `entityName`, `fundName`, `departmentName`, `accountName`,
+`purposeName`, `programName`, `projectName`, and `activityName`. PPM responses
+populate `projectName`, `taskName`, `expenditureOrganizationName`, and
+`expenditureTypeName`. Segment-name fields that do not apply are empty strings.
 
 All HTTP functions require authentication by default. The health function is
 the only explicit anonymous exception.
