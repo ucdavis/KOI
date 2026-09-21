@@ -4,9 +4,9 @@
     "net10.0": {
       "AggieEnterpriseApi": {
         "type": "Direct",
-        "requested": "[0.3.27, )",
-        "resolved": "0.3.27",
-        "contentHash": "ryvbacxhshCAWUL8BzTGY1PU7GCcX5eWAzYsMTYXjJuRly9ZtR6HDWpXsrB/Jg3+WAGfTx0EOO7CAOB1Pfqs4g==",
+        "requested": "[0.3.29, )",
+        "resolved": "0.3.29",
+        "contentHash": "+M7DX661ANkTTOdK12WWgg5V9SM1Z5Ip8jzDRhWN+02al1BCHd5Q25i1IXDuCXHKaNksp4Fwk38qyT0XHmY1XQ==",
         "dependencies": {
           "Microsoft.Extensions.Caching.Memory": "10.0.1",
           "Microsoft.Extensions.DependencyInjection": "10.0.1",
@@ -672,7 +672,7 @@
       "koi.functions": {
         "type": "Project",
         "dependencies": {
-          "AggieEnterpriseApi": "[0.3.27, )",
+          "AggieEnterpriseApi": "[0.3.29, )",
           "Dotenv.Extensions.Microsoft.Configuration": "[3.1.0, )",
           "Microsoft.Azure.Functions.Worker": "[2.52.0, )",
           "Microsoft.Azure.Functions.Worker.Extensions.Http": "[3.3.0, )",
